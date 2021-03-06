@@ -1,7 +1,7 @@
 /*
 * 观察者模式
-* 因为采用了c++ 11标准
-* 编译 g++ subject-observer.cc -std=c++11
+*(标准版本)
+* 编译 g++ subject-observer.cc
 */
 
 #include <iostream>
