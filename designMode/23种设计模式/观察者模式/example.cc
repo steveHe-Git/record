@@ -64,7 +64,7 @@ public:
     void update(std::string event) {
         cout << name <<" recieve event->"<< event <<endl;
         if (event == "Boss") {
-            cout << event <<" arrived," << name << "stop reading book" << endl;
+            cout << event <<" arrived," << name << " stop reading book" << endl;
         }
     }
 };
@@ -105,11 +105,13 @@ void publishSubject::attachObserver(observerPtr observer){
 
 void publishSubject::detachObserver(observerPtr observer){
     std::list<observerPtr>::iterator it = observerPtrList.begin();
-    while (it != observerPtrList.end()) {
-        if ((*it) == observer) {
-            observerPtrList.remove(observer);
+    while(it != observerPtrList.end()){
+        if((*it) == observer) {
+            /*特别注意erase的返回值是一个指向下一个元素的迭代器指针*/
+            it = observerPtrList.erase(it);
+        } else {
+            ++it;
         }
-        it++;
     }
 }
 
@@ -117,7 +119,7 @@ void publishSubject::notify(){
     std::list<observerPtr>::iterator it = observerPtrList.begin();
     while (it != observerPtrList.end()) {
         (*it)->update(event);
-        it++;
+        ++it;
     }
 }
 
@@ -126,7 +128,7 @@ int main() {
     auto publisher = std::make_shared<publishSubject>();
     auto subscribe1 = std::make_shared<watchTvSubcribe>("jack");
     auto subscribe2 = std::make_shared<palyGameSubscribe>("tom");
-    auto subscribe3 = std::make_shared<palyGameSubscribe>("steve");
+    auto subscribe3 = std::make_shared<readBookSubscribe>("steve");
 
     publisher->attachObserver(subscribe1);
     publisher->attachObserver(subscribe2);
