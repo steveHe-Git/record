@@ -128,3 +128,51 @@ _1表示占位符，位于<functional>中，std::placeholders::_1；
    成员函数指针的定义：void (Foo::*fun)()，调用是传递的实参: &Foo::f；
    fun为类成员函数指针，所以调用是要通过解引用的方式获取成员函数*fun,即(foo1->*fun)();
    ```
+
+2. c++中的std::enable_if
+   
+   ```cpp
+   //cpp reference中的实例代码
+   // enable_if example: two ways of using enable_if
+   #include <iostream>
+   #include <type_traits>
+   // 1. the return type (bool) is only valid if T is an integral type:
+   template <class T>
+   typename std::enable_if<std::is_integral<T>::value,bool>::type
+   is_odd (T i) {return bool(i%2);}
+   // 2. the second template argument is only valid if T is an integral type:
+   template < class T,
+   class = typename std::enable_if<std::is_integral<T>::value>::type>
+   bool is_even (T i) {return !bool(i%2);}
+   int main() {
+       short int i = 1;    // code does not compile if type of i is not integral
+       std::cout << std::boolalpha;
+       std::cout << "i is odd: " << is_odd(i) << std::endl;
+       std::cout << "i is even: " << is_even(i) << std::endl;
+       return 0;
+   }
+   
+   //if cond is true ,则typedef int type; 如果没有指定int类型默认为type为void类型，
+   //if cond is true ,则编译出错；
+   typename std::enable_if<true, int>::type t; //正确
+   typename std::enable_if<true>::type; //可以通过编译，没有实际用处，推导的模板是偏特化版本，第一模板参数是true，第二模板参数是通常版本中定义的默认类型即void
+   typename std::enable_if<false>::type; //无法通过编译，type类型没有定义
+   typename std::enable_if<false, int>::type t2; //同上
+   
+   
+   这两个函数如果是普通函数的话，根据重载的规则是不会通过编译的。即便是模板函数，如果这两个函数都能推导出正确的结果，也会产生重载二义性问题，但是正因为std::enable_if的运用使这两个函数的返回值在同一个函数调用的推导过程中只有一个合法，遵循SFINAE原则，则可以顺利通过编译。
+   template <typename T>
+   typename std::enable_if<std::is_trivial<T>::value>::type SFINAE_test(T value)
+   {
+       std::cout<<"T is trival"<<std::endl;
+   }
+   template <typename T>
+   typename std::enable_if<!std::is_trivial<T>::value>::type SFINAE_test(T value)
+   {
+       std::cout<<"T is none trival"<<std::endl;
+   }
+   
+   ```
+
+
+
