@@ -268,6 +268,8 @@ struct的缺省继承方式是公有继承
 2.父类对象不能赋值给子类对象
 3.父类对象的指针/引用可以指向子类对象
 4.子类的指针/引用不能指向父类对象(强制类型转换)
+5.友元关系：不能被继承，因为友元函数不是类的成员；
+6.静态成员变量： 可以被继承，且是同一个变量；
 ```
 
 >同名隐藏
@@ -302,3 +304,55 @@ struct的缺省继承方式是公有继承
     fish():animal(400,300)
 ```
 
+> 虚继承
+
+```cpp
+对于菱形继承
+D继承于BC,BC继承于A;
+    类D中的成员变量 int a，如果访问a，就会出现二义性问题，到底是B中的a，还是C中的A，并且会造成数据冗余问题。
+其中，对于二义性问题，我们加访问限定即可。例如 B::a 或者C::a；但对于数据冗余问题却没有办法解决。
+于是C++中就引入了虚拟继承
+        
+#include<iostream>  
+using namespace std;  
+class A  //大小为4  
+{  
+    public:  
+    int a;  
+};  
+class B :virtual public A  //大小为12，变量a,b共8字节，虚基类表指针4  
+{  
+    public:  
+    int b;  
+};  
+
+class C :virtual public A //与B一样12 
+{  
+    public:  
+    int c;  
+};  
+
+class D :public B, public C //24,变量a,b,c,d共16，B的虚基类指针4，C的虚基类指针  
+{  
+    public:  
+    int d;  
+};  
+
+int main()  
+{  
+    A a;  
+    B b;  
+    C c;  
+    D d;  
+    cout << sizeof(a) << endl;  
+    cout << sizeof(b) << endl;  
+    cout << sizeof(c) << endl;  
+    cout << sizeof(d) << endl;  
+    return 0;  
+}
+
+虚拟继承和普通继承的区别
+    如果一个类中有虚函数，那么就会有一个虚表，有一个指针指向这个虚表;
+    对于普通继承，继承的虚函数和本有的虚函数共用同一个虚表;
+    但对于虚拟继承来说，不管是基类还是派生类都需要有一个指针来维护自己的虚表，并且还要有一个指针指向虚基表，其中存放偏移量;
+```
