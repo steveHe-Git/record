@@ -1,0 +1,10 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/steve/Desktop/steve_github/record/designMode/23种设计模式/工厂模式/build/CMakeFiles/3.5.1/CompilerIdCXX/CMakeCXXCompilerId.cpp
+
