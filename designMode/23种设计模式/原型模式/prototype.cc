@@ -24,6 +24,7 @@ public:
     }
 
     Hero(const Hero& hero) {
+        cout << "#hero construct" <<endl;
         this->Damage = hero.Damage;
         this->Magic = hero.Magic;
     }
