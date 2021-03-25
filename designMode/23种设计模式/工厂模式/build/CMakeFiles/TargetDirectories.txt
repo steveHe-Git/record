@@ -1,3 +1,0 @@
-/home/steve/Desktop/steve_github/record/designMode/23种设计模式/工厂模式/build/CMakeFiles/edit_cache.dir
-/home/steve/Desktop/steve_github/record/designMode/23种设计模式/工厂模式/build/CMakeFiles/rebuild_cache.dir
-/home/steve/Desktop/steve_github/record/designMode/23种设计模式/工厂模式/build/CMakeFiles/CMakeCXXCompilerId.dir
