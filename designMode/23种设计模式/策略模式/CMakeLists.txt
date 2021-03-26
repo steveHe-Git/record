@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
+project(Stratage)
+add_definitions(-std=c++11)
+aux_source_directory(. source_dir)
+ADD_EXECUTABLE(${PROJECT_NAME} ${source_dir})
