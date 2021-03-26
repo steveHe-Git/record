@@ -1,0 +1,3 @@
+/home/steve/Desktop/steve_github/record/designMode/IOC/build/CMakeFiles/rebuild_cache.dir
+/home/steve/Desktop/steve_github/record/designMode/IOC/build/CMakeFiles/edit_cache.dir
+/home/steve/Desktop/steve_github/record/designMode/IOC/build/CMakeFiles/ioc_simple.dir
