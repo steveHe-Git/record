@@ -3,7 +3,7 @@ project(main)
 
 add_definitions(-std=c++11)
 
-aux_source_directory(. CPP_LIST)
+
 
 #find_package(Boost REQUIRED COMPONENTS 
     #system
