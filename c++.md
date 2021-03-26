@@ -403,7 +403,7 @@ int main(void){
   ```
 4. 类模板中的模板函数
 
-  ```
+  ```cpp
 template<typename K>
 class A{
 public:
@@ -430,7 +430,7 @@ class    -类
 		 /参数
 typename -解决嵌套依赖
   1. 解决嵌套依赖实例
-  ```
+  ```cpp
 class A {
 public:
 	class B{};
