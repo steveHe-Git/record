@@ -248,20 +248,13 @@ b = a ;   //调用赋值函数(b存在)
 ## 4. c++中的右值引用、移动语义和完美转发
 
 > 左值、右值
-```
+```cpp
 c++中引入了右值引用和移动语义，可以避免无谓的复制，提高程序性能
 `C++`中所有的值都必然属于左值、右值二者之一。左值是指表达式结束后依然存在的*持久化对象*，右值是指表达式结束时就不再存在的*临时对象*。所有的具名变量或者对象都是左值，而右值不具名。很难得到左值和右值的真正定义，但是有一个可以区分左值和右值的便捷方法：**看能不能对表达式取地址，如果能，则为左值，否则为右值**
 
 右值分为将亡值和纯右值，纯右值就是c++98标准中右值的概念，如非引用返回的函数返回的临时变量值；一些运算表达式，如1+2产生的临时变量；不跟对象关联的字面量值，如2，'c'，true，"hello"；这些值都不能够被取地址；
-而将亡值则是c++11新增的和右值引用相关的表达式，这样的表达式通常时将要移动的对象、T&&函数返回值、std::move()函数的返回值等；
+而将亡值则是c++11新增的和右值引用相关的表达式，这样的表达式通常时将要移动的对象、T&&函数返回值、std::move()函数的返回值等
 ```
-
-
-
-作者：StormZhu
-链接：https://www.jianshu.com/p/d19fc8447eaa
-来源：简书
-著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 
 
@@ -273,18 +266,15 @@ c++中引入了右值引用和移动语义，可以避免无谓的复制，提�
 2. 保护继承：基类中的非私有成员在派生类中的访问属性都降一级(公有变保护，保护变私有)
 3. 公有继承：基类中的非私有成员在派生类中的访问属性保持不变
 注意：基类中的私有成员，子类能继承，但是子类不能直接访问，需要使用父类提供的方法才能访问该变量。改方法是从父类继承中得到的protected、public方法来访问
-<<<<<<< HEAD
-```
-=======
 注意：派生类从基类公有继承时，派生类的成员函数可以直接访问基类的公有成员，但不能访问基类的私有成员
     为了便于派生类的访问，可以将基类的私有成员中需要提供给派生类访问的成员定义为保护成员
     派生类可以访问protected权限的成员但是派生类的对象不能访问基类的成员
+
 4. 访问权限
 public：类内、类的对象；派生类内、派生类对象--->>均可访问。
 protected：类内、派生类内--->>可以访问；类的对象、派生类的对象-->>不可访问。
 private：只有类内部-->>可以访问；类的对象、派生类、派生类的对象，统统的-->>不可访问(可以使用父类提供的方法才能访问该变量)。
->>>>>>> 9ed7fc9487fb91f734ad08f3644f597079bd5fee
-
+```
 >继承的特性
 ```cpp
 class的缺省的继承方式是私有继承
@@ -384,3 +374,147 @@ int main()
     对于普通继承，继承的虚函数和本有的虚函数共用同一个虚表;
     但对于虚拟继承来说，不管是基类还是派生类都需要有一个指针来维护自己的虚表，并且还要有一个指针指向虚基表，其中存放偏移量;
 ```
+
+## 6. c++中的友元函数
+```cpp
+类的友元函数是定义在类外部，但有权访问类的所有私有（private）成员和保护（protected）成员。尽管友元函数的原型有在类的定义中出现过，但是友元函数并不是成员函数。
+友元可以是一个函数，该函数被称为友元函数；友元也可以是一个类，该类被称为友元类，在这种情况下，整个类及其所有成员都是友元。
+如果要声明函数为一个类的友元，需要在类定义中该函数原型前使用关键字 friend，如下所示：
+
+//友元类和友元函数的使用
+#include <iostream>
+using namespace std;
+class Box
+{
+    double width;
+public:
+    friend void printWidth(Box box);
+    friend class BigBox;
+    void setWidth(double wid);
+};
+class BigBox
+{
+public :
+    void Print(int width, Box &box){
+        // BigBox是Box的友元类，它可以直接访问Box类的任何成员
+        box.setWidth(width);
+        cout << "Width of box : " << box.width << endl;
+    }
+};
+// 成员函数定义
+void Box::setWidth(double wid){
+    width = wid;
+}
+// 请注意：printWidth() 不是任何类的成员函数
+void printWidth(Box box) {
+    /* 因为 printWidth() 是 Box 的友元，它可以直接访问该类的任何成员 */
+    cout << "Width of box : " << box.width << endl;
+}
+
+// 程序的主函数
+int main()
+{
+    Box box;
+    BigBox big;
+    // 使用成员函数设置宽度
+    box.setWidth(10.0);
+    // 使用友元函数输出宽度
+    printWidth(box);
+    // 使用友元类中的方法设置宽度
+    big.Print(20, box);
+    getchar();
+    return 0;
+}
+
+注意：
+因为友元函数没有this指针，则参数要有三种情况： 
+要访问非static成员时，需要对象做参数；
+要访问static成员或全局变量时，则不需要对象做参数；
+如果做参数的对象是全局对象，则不需要对象做参数.
+可以直接调用友元函数，不需要通过对象或指针
+```
+
+## 7. c++中的强制转换
+
+> dynamic_cast和static_cast，reinterpret_cast，const_cast异同
+
+```cpp
+1. const_cast
+const_cast顾名思义，用来将对象的常量属性转除，使常量可以被修改。const_cast<type>(varible)中的type必须是指针，引用，或者指向对象类型成员的指针。比如以下用法是错误的
+const int a = 3;
+const_cast<int>(a) = 4; //错误的
+const_cast<int&>(a) = 4; //正确的
+
+2.dynamic_cast
+多态类之间的类型转换用daynamic_cast。
+    1. 子类转成父类dynamic_cast和static_cast都没有问题.
+    2. 父类转成子类，dynamic_cast要求父类中有虚函数，否则编译不通过。static_cast不作此要求，编译通过。
+       在有虚函数的前提下，如果父类指针的确实指向的是子类实例，dynamic_cast转换成功，否则返回NULL；
+       static_cast对于转换前的指针是否指向实际子类实例，不作要求，都能转换成功;
+    class B
+    {
+         virtual void f(){};
+    };
+    class D : public B
+    {
+         virtual void f(){};
+    };
+    void main()
+    {
+         B* pb = new D;   // unclear but ok
+         B* pb2 = new B;
+         D* pd = dynamic_cast<D*>(pb);   // ok: pb actually points to a D
+         D* pd2 = dynamic_cast<D*>(pb2);   // pb2 points to a B not a D, now pd2 is NULL
+    }
+
+3.static_cast
+无条件转换，静态类型转换；
+　  1. 基类和子类之间转换：其中子类指针转换成父类指针是安全的;但父类指针转换成子类指针是不安全的。(基类和子类之间的动态类型转换建议用dynamic_cast)
+　　2. 基本数据类型转换。enum, struct, int, char, float等。static_cast不能进行无关类型(如非基类和子类)指针之间的转换			int*a;（double *d = static_cast<double *>(a) //无关类型指针转换，编译错误）。
+　　3. 把空指针转换成目标类型的空指针。
+　　4. 把任何类型的表达式转换成void类型。
+　　5. static_cast不能去掉类型的const、volitale属性(用const_cast)，但是可以加常属性(const int a = static_cast<const int>(a))。
+    
+4.reinterpret_cast
+    允许将任何指针类型转换为其它的指针类型；听起来很强大，但是也很不靠谱。它主要用于将一种数据类型从一种类型转换为另一种类型。它可以将一个指针转换成一个整数，也可以将一个整数转换成一个指针，在实际开发中，先把一个指针转换成一个整数，在把该整数转换成原类型的指针，还可以得到原来的指针值；特别是开辟了系统全局的内存空间，需要在多个应用程序之间使用时，需要彼此共享，传递这个内存空间的指针时，就可以将指针转换成整数值，得到以后，再将整数值转换成指针，进行对应的操作。
+```
+## 8. C++ 用operator实现隐式类型转换
+
+```cpp
+#include <iostream>
+template<typename _T>
+class A {
+public:
+	A(_T a) : data(a) {}
+	operator _T () { return data; }
+private:
+	_T data;
+};
+ 
+int main() {
+	A<int> obj(2);
+	obj = obj + 1; //obj会隐式转换成int类型
+	std::cout << obj << std::endl;
+	return 0;
+}
+
+注意： 运算符重载中(以==为例说明隐式类型转换)
+1. 首先看是否是同种支持(==)的普通基本运算符，如果是，直接进行操作；
+2. 如果满足上述条件，看是否有重载==运算符；
+3. 上述两条不满足，则看是否具有隐式类型转换；
+
+示例：
+class Integer{
+public:
+	Integer(int const& i):m_i(i){}
+    operator int&(void){
+        return m_i;
+    }
+    operator int const&(void) const{
+        return static_cast<int&>(const_cast<Integer&>(*this))
+    }
+private:
+    int m_i;
+}
+```
+
