@@ -557,14 +557,154 @@ sort函数的第三个参数，可以是比较器函数指针，或者是比较�
 元素类型往往需要考虑一下几个问题：
 是否支持深拷贝 拷贝构造和拷贝赋值
 是否支持相等性比较 find "==" 或类型转换
-是否支持小于运算， 小于号，sort 或者比较器        
-                                          
-补充：
-size_type string::find_first_of(string const& str, size_type pos = 0);
+是否支持小于运算， 小于号，sort 或者比较器                      
+```
+
+> 字符串string
+
+```cpp
+1. 源自basic_string<T>模板的类型别名
+typedef basic_string<char>string
+typedef basic_string<wchar_t>wstring
+char-1个字节-string表示多字节字符串
+wchar_t-2/4个字节-wstring表示宽字节字符串
+    
+2. 创建字符串对象
+string str;
+string str("");
+string str = "";
+string str("Hello world!");
+string str = "Hello world!";
+string str = string("");
+string str = string("hello world!");
+string* str = new string;
+string* str = new string();
+string* str = new string("");
+string* str = new string("hello world");
+C风格字符串->c++风格字符串
+char cstr[] = "hello world";
+string cpps(cstr);
+string cpps = cstr;
+C++风格字符串->C风格字符串
+string cpps(hello world);
+char const* cstr = cpps.c_str();
+
+3.字符串的运算
+1. 拼接： +
+2. 赋值： =/+=
+3. 关系：</<=/>/>=/==/!= 大小写敏感
+4. 输入、输出： >>/<<
+5. 下标：[]
+
+4. 大小和容量
+size/resize/clear/empty/capacity/reserve
+string str("123456789");
+str.length() -> 9
+str.size() ->9
+sizeof(str)->4/8
+strlen(str.c_str()) ->9
+    
+5. find_first_of 与 find_first_not_of (两者是相反的)；substr
+    size_type string::find_first_of(string const& str, size_type pos = 0);
 返回调用字符串中，从pos处开始的，第一个出现在str中的字符串的下标，如果没有出现在字符串中的下标，则返回string::npos
 string s1("hello123world");
 string s2("0123456789");
 s1.find_first_of(s2) --> 5
 s1.find_first_of(s2, 6) --> 6
-s1.find_first_of(s2, 8) --> string::npos                 
+s1.find_first_of(s2, 8) --> string::npos   
+    
+string substr (size_type pos, size_type len = string::npos)
+返回调用字符串中从pos处开始len个字符的子串
+ 
+6.字符串的单字符访问
+1. 下标运算符:str[i], 不检查下标越界
+2. char& at(size_type index);
+    char const& at(size_type index)const;
+检查下标越界，抛出std::out_of_range异常
+    
+7. 查找与替换
+size_type find(const string& str, size_type pos);
+返回调用字符串从pos开始，第一次出现str的首个字符的下标
+string s1 = "abchelloxyz";
+string s2 = "hello"
+s1.find(s2, 0) ->3
+string& repalce (size_type pos size_type len, string const& str)
+将调用字符串从第pos个字符开始的len个字符替换为str字符串，同时返回调用字符串的自引用
+string s1 = "abchelloxyz";
+string s2 = "steve"
+s1.replace(3, 5, s2) s1->abcstevexyz
+    
+8.插入删除
+string& insert(size_type pos, const string& str)
+在调用字符串第pos个字符前面插入str字符串
+string& erase(size_type pos = 0, size_type len = string::npos)
+在调用字符串第pos个字符开始删除len个字符
+    
+9.交换和复制
+void swap(string& from)
+将调用字符串和from字符串的内容做交换
+string& assign(string const& str, size_type pos, size_type len)
+将str字符串从pos开始的len个字符复制到调用字符串
 ```
+
+> 双端队列
+
+```cpp
+1. 除了capacity()和reserve()以外向量的接口双端队列都有
+2. 双端队列增加了在头部压入和弹出的接口
+   push_front/pop_front
+3. 虽然双端队列的物理结构也是连续的内存空间，但是它在其内存空间的首尾两端保持了适度的开放性，因此在距离首尾两端等距的位置做insert和erase,性能是一致的
+4. 和向量一样也支持通过下标和随机迭代器访问容器中的元素
+5. 所占用的内存比向量略多，动态内存管理所花费的时间也比向量略多
+注意
+    （push_back/push_front/pop_back/pop_front/insert/erase/resize/clear）会导致原先初始化的迭代器不在指向先前的元素，如果需要保证迭代器和其目标的相对位置不变，需要人为地同步
+```
+
+> list(列表)
+
+```cpp
+1. 列表按照链式线性表的形式存储数据，每个数据元素存放在内存不连续的节点之中
+2. 不支持下标运算符，也不支持随机迭代
+3. 大部分成员函数和双端队列一样
+  front/push_front/pop_front
+  back/push_back/pop_back
+  insert/erase
+  size/resize/clear/empty
+  begin/end/rbegin/rend
+4. 特有的成员函数
+  remove 删除所有匹配的元素
+  unique 连续重复的元素做唯一化
+  10 20 20 20 30 10 20 20 40
+           \|/
+  10 20 30 10 20 40
+  splice -将参数列表的全部或者一部分插入到调用列表中
+  void splice(interator pos, list& lst);
+  将lst全部插入到调用列表的pos之前
+  void splice(interator pos, list& lst， interator del);
+  将lst中del所指向的元素剪切到调用列表的pos之前
+  void splice(interator pos, list& lst， interator begin, interator end);
+  将lst中begin开始end结束的元素剪切到调用列表的pos之前
+      
+  merge - 将有序的参数列表合并到有序的调用列表中，并保证合并以后的结果依然有序
+  void merge(list& lst)
+  void merge(list& lst, less cmp) //比较器
+      
+  sort -排序
+  sort(void)
+  sort(less cmp)
+```
+
+> 堆栈
+
+```cpp
+push  ->push_back
+pop   ->pop_back
+top	  ->back
+size	->size
+empty	->empty
+三种线性容器中的任何一种都可以适配堆栈
+缺省底层容器是deque
+stack<元素类型， 底层容器类型> st;
+stack<元素类型> st; 底层容器是deque (后进先出)
+```
+
