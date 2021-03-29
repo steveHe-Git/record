@@ -40,7 +40,7 @@ public:
         handler_ = h;
         topic_ = t;
     }
-    ~HelpHandler(){}
+    virtual ~HelpHandler(){}
 };
 
 class Widget:public HelpHandler
@@ -52,7 +52,7 @@ protected:
     Widget(Widget* w = 0, TOPIC t = NO_HELP_TOPIC):HelpHandler(w, t){
         parent_ = w;
     }
-    ~Widget(){}
+    virtual ~Widget(){}
 };
 
 class Button:public Widget
@@ -65,6 +65,7 @@ public:
             //提供帮助
             cout << "Button doing..." <<endl;
         } else {
+            //需要指明作用域，否则就是调用自己的HandleHelp，出现死循环
             HelpHandler::HandleHelp();
         }
     }
@@ -109,6 +110,7 @@ int main () {
     const TOPIC PAPER_TOPIC = 2;
     const TOPIC APPLICATION_TOPIC = 3;
 
+    //一个button请求，处理流程是button（按钮）->dialog（界面）->application（应用）
     Application* application = new Application(APPLICATION_TOPIC);
     Dialog* dialog = new Dialog(application, NO_HANDLE);
     Button* button = new Button(dialog, NO_HANDLE);
