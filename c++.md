@@ -438,6 +438,7 @@ public:
 }
 template<typename T>
 void foo(T t) {
+    //因为T::B不知道是什么类型(可能是T中的变量，变量不能定义变量，加上typename T::B表明是一个类型)
 	typename T::B x;     //前面必须加typename，
 	typename T::BOOL y;
 }
@@ -445,4 +446,125 @@ int main() {
 	A a;
 	foo(a) 				//隐式推断T为A类型
 }
+
+//vector打印(解决嵌套依赖的问题)
+template<typename T>
+void disp(vector<T>::const& vec) {
+    //加上typename解决嵌套依赖问题(不加会报错)
+    for(typename vector<T>::const_interator it = vec.begin(); it != vec.end();++it)
+        cout << *it << ' ';
+    cout <<endl;   
+}
   ```
+
+### 7 STL各种容器(vector, list, map, deque, stack)
+
+>STL的特性
+```cpp
+1.STL里的所有的组件，都是通过模板定义的，全面支持泛型
+2.STL所追求的目标就是最大程度上降低数据结构和算法与具体算法的相关性
+3.STL的设置宗旨是通过一个尽量小的框架，实现尽量打的弹性
+    
+STL主要的容器类型
+1. 向量(vector)： 内存连续，下标访问
+2. 列表(list): 内存不连续。不支持下标访问，随机插值高效(链表)
+3. 双端队列(deque): 类似于向量，但是两端是开放的
+以上三种容器合称为线性容器，强调元素之间的前后关系
+4. 堆栈(stack)：在一端的压入和弹出，后进先出
+5. 队列(queue):从一端压入，从另外一端弹出，先进先出
+6.优先队列(priority_queue):从一端压入，从另外一端弹出，优者先出
+以上三种容器合称为适配器容器，构建三种线性容器之前的封装
+7.映射(map):通过平衡有序二叉树，存放key-value对的集合，提高树搜索性能。key必须唯一，一对一对应
+8.多重映射(multimap):允许key重复的映射，一对多对应
+9.集合(set):没有value的映射(强调唯一性)
+10.多重集合(multiset)：没有value的多重映射
+以上四种容器合称为关联容器
+    
+STL容器的共性
+1.所有的容器都支持深拷贝
+2.所有的容器都可以和同型容器做关系比较
+3.容器的元素都是副本
+4.所有的容器都支持迭代器
+```
+> vector
+
+```cpp
+1. 从一段连续的内存空间存放数据；
+2. 具备常数时间的随机访问特性；
+3. 支持下标运算符；
+4. 支持动态内存管理:向量把他们所有的元素存放在一个连续的内存块中，这并不会妨碍新元素被无限地插入到容器中，如果当前内存内无法满足一个向量中所有元素存放的需要，那么这个向量就会自动转移到一个新的内存，原先位置上的所有的元素都将被复制到新的内存中，而原先的内存空间则将被释放；
+5.通过预分配空间降低动态内存管理的开销；
+6.也支持随机位置的插入和删除，但是只有在向量尾部做插入和删除是高效的；
+    
+实例化：
+#include <vector>
+vector<元素类型> 向量对象
+vector<int> vi;
+vector<元素类型> 向量对象(初始大小)
+vector<int> vi(10);
+初始大小范围内的元素，基本类型，初始化为0(10个元素，全部初始化为0)
+vector<int> vi(10, 1234);
+初始大小范围内的元素，基本类型，初始化为0(10个元素，全部初始化为1234)
+vector<int> vi(起始迭代器, 终止迭代器);
+用另一个容器从起始迭代器开始，到终止迭代器之前为止的范围内的元素，初始化所构造的向量
+
+int a[5] = {1, 2, 3, 4, 5};
+vector<int>(a, a+5)
+vector<int>(&a[0], &a[5]) <==>vector<int>(&*(a+0), &*(a+5);
+
+front/back/push_back/pop_back                                         
+迭代器
+四个迭代器
+interator/const_iterator
+reverse_interator/const_reverse_interator
+随机迭代器
+1. 只有连续内存容器(vector/deque)才有随机迭代器
+2. (随机迭代器)支持和整数的加减运算，支持迭代器的比较和相减运算 
+                                          
+insert/erase
+insert: 插入元素，返回插入元素的迭代器；
+erase:删除元素，返回删除元素的后一个元素的迭代器；
+                                          
+大小和容量
+大小：实际容纳元素的个数
+容量：最多容纳元素的个数
+size: 返回大小； resize:改变大小，可增可减，增构造，减析构
+clear:清空，等价于resize(0)
+empty: 判断是否为空
+capacity:返回容量
+reserve:预留容量，只增不减，新增部分不初始化
+
+查找和排序(find sort)
+interator find(interator begin, interator end, const value_type& val)
+在begin和end之间查找相匹配的第一个元素，返回该元素的迭代器。如果查找失败，返回第二个参数
+void sort(interator begin, interator end);
+void sort(interator begin, interator end, 比较器函数名/或者比较器类());
+所谓比较器，就是返回bool类型值，用于判断第一个元素参数是否小于第二个元素参数的函数或函数对象
+bool 比较器函数(元素类型 const&a, 元素类型 const&b) {
+    如果认为a小于b,则返回true, 否则返回false;
+}
+class 比较器类 {
+public:
+    bool operator()(元素类型 const&a, 元素类型 const&b) {
+    	如果认为a小于b,则返回true, 否则返回false;
+	}
+}
+sort函数的第三个参数，可以是比较器函数指针，或者是比较器类对象;                                         
+                                          
+向量不适应保存大对象，如果对象需要使用较多的内存资源，建议通过构造和析构函数动态分配和释放该资源
+                                          
+7. 类类型的向量
+元素类型往往需要考虑一下几个问题：
+是否支持深拷贝 拷贝构造和拷贝赋值
+是否支持相等性比较 find "==" 或类型转换
+是否支持小于运算， 小于号，sort 或者比较器        
+                                          
+补充：
+size_type string::find_first_of(string const& str, size_type pos = 0);
+返回调用字符串中，从pos处开始的，第一个出现在str中的字符串的下标，如果没有出现在字符串中的下标，则返回string::npos
+string s1("hello123world");
+string s2("0123456789");
+s1.find_first_of(s2) --> 5
+s1.find_first_of(s2, 6) --> 6
+s1.find_first_of(s2, 8) --> string::npos                 
+```
