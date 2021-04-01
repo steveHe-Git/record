@@ -12,11 +12,15 @@ message(STATUS ${mains})
 message(STATUS ${PROJECT_BINARY_DIR})
 message(STATUS ${PROJECT_SOURCE_DIR})
 
+message(STATUS ${CMAKE_BINARY_DIR})
+message(STATUS ${CMAKE_SOURCE_DIR})
+
 message(STATUS ${CMAKE_CURRENT_SOURCE_DIR})
 message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
 message(STATUS ${CMAKE_CURRENT_LIST_FILE})
 message(STATUS ${CMAKE_CURRENT_LIST_DIR})
 message(STATUS ${CMAKE_CURRENT_LIST_LINE})
+
 foreach(mainfile IN LISTS mains)
     # Get file name without directory
     get_filename_component(mainname ${mainfile} NAME_WE)
