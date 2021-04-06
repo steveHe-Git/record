@@ -96,7 +96,7 @@ configure_file (
 "${PROJECT_SOURCE_DIR}/config.h.in"
 "${PROJECT_BINARY_DIR}/config.h"
 )
-    configure_file 命令用于加入一个配置头文件 config.h ，这个文件由 CMake 从 config.h.in 生成，通过这样的机制，将可以通过预定义一些参数和变量来控制代码的生成
+    configure_file 命令用于加入一个配置头文件config.h ，这个文件由 CMake 从 config.h.in 生成，通过这样的机制，将可以通过预定义一些参数和变量来控制代码的生成
     这里引用了一个 config.h 文件，这个文件预定义了USE_MYMATH的值。但我们并不直接编写这个文件，为了方便从 CMakeLists.txt 中导入配置，我们编写一个 config.h.in 文件，内容如下
     #cmakedefine USE_MYMATH
     在输出文件config.h中就会被转化为：
@@ -229,18 +229,18 @@ set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 ```cpp
 主要有隐式定义和显式定义两种。
 隐式定义:会隐式的定义<projectname>_BINARY_DIR 和<projectname>_SOURCE_DIR 两个变量
-  ${PROJECT_BINARY_DIR}
-	${PROJECT_SOURCE_DIR}  
-1. 如果是in source编译,建立一个build文件夹， cmake ../ 或者cmake ../src ../或者../src指定源文件的和CMakeLists.txt的位置
-    ${PROJECT_BINARY_DIR} ==>  ./build
-    ${PROJECT_SOURCE_DIR} ==>  ./      (cmake ../)
-    ${PROJECT_BINARY_DIR} ==>  ./build
-    ${PROJECT_SOURCE_DIR} ==>  ./src      (cmake ../src)
-2. 如果是not in source编译,不建立一个build文件夹， cmake ../ 或者cmake ../src ../或者../src指定源文件的和CMakeLists.txt的位置
-    ${PROJECT_BINARY_DIR} ==>  ./      （cmake ./）
-    ${PROJECT_SOURCE_DIR} ==>  ./	   （cmake ./）
-    ${PROJECT_BINARY_DIR} ==>  ./      （cmake ./）
-    ${PROJECT_SOURCE_DIR} ==>  ./	   （cmake ./src）
+  ${PROJECT_BINARY_DIR}    <=> ${CMAKE_BINARY_DIR}
+	${PROJECT_SOURCE_DIR}  <=> ${CMAKE_SOURCE_DIR}
+1. 如果是not in source编译,建立一个build文件夹， cmake ../ 或者cmake ../src ../或者../src指定源文件的和CMakeLists.txt的位置
+    ${PROJECT_BINARY_DIR} ==>  ./build		(cmake ../)
+    ${PROJECT_SOURCE_DIR} ==>  ./      	  	(cmake ../)
+    ${PROJECT_BINARY_DIR} ==>  ./build		(cmake ../src)
+    ${PROJECT_SOURCE_DIR} ==>  ./src      	(cmake ../src)
+2. 如果是in source编译,不建立一个build文件夹， cmake ../ 或者cmake ../src ../或者../src指定源文件的和CMakeLists.txt的位置
+    ${PROJECT_BINARY_DIR} ==>  ./      		（cmake ./）
+    ${PROJECT_SOURCE_DIR} ==>  ./	   		（cmake ./）
+    ${PROJECT_BINARY_DIR} ==>  ./      		（cmake ./src）
+    ${PROJECT_SOURCE_DIR} ==>  ./src	   	（cmake ./src）
 
 set用来显式的定义变量
  1. 定义了一个变量libs，并且变量的值为${CMAKE_SOURCE_DIR}/src/main/jnilibs
@@ -298,7 +298,7 @@ SET(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 ```cpp
 cmake变量使用${}方式取值,但是在IF控制语句中是直接使用变量名
-环境变量使用$ENV{}方式取值,使用SET(ENV{VAR} VALUE)赋值
+环境变量使用$ENV{}方式取值,使用SET($ENV{VAR} VALUE)赋值
 
 指令(参数1 参数2…) 参数使用括弧括起,参数之间使用空格或分号分开。
 以ADD_EXECUTABLE指令为例：
@@ -330,6 +330,20 @@ EXCLUDE_FROM_ALL 表示该库不会被默认构建
 
 --SET_TARGET_PROPERTIES
 设置输出的名称,设置动态库的版本和API版本
+# cmake在构建一个新的target时，会尝试清理掉其他使用这个名字的库，
+# 因此，在构建libhello.a时，就会清理掉libhello.so.
+# 为了回避这个问题，比如再次使用SET_TARGET_PROPERTIES定义 CLEAN_DIRECT_OUTPUT属性。
+SET_TARGET_PROPERTIES (hello_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+SET_TARGET_PROPERTIES (hello PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+# 按照规则，动态库是应该包含一个版本号的，
+# VERSION指代动态库版本，SOVERSION指代API版本。
+SET_TARGET_PROPERTIES (hello PROPERTIES VERSION 1.2 SOVERSION 1)
+# 我们需要将libhello.a, libhello.so.x以及hello.h安装到系统目录，才能真正让其他人开发使用，
+# 在本例中我们将hello的共享库安装到<prefix>/lib目录；
+# 将hello.h安装<prefix>/include/hello目录。
+INSTALL (TARGETS hello hello_static LIBRARY DESTINATION lib
+ARCHIVE DESTINATION lib) #静态库需要加ARCHIVE
+INSTALL (FILES hello.h DESTINATION include/hello)
     
 --CMAKE_MINIMUM_REQUIRED
 CMAKE_MINIMUM_REQUIRED(VERSION version_number [FATAL_ERROR])
@@ -403,6 +417,32 @@ FIND_PROGRAM(<VAR> name path1 path2 …)
 FIND_PACKAGE(<name> [major.minor] [QUIET] [NO_MODULE] [[REQUIRED | COMPONENTS] [componets …]])
   	用来调用预定义在CMAKE_MODULE_PATH下的Find<name>.cmake模块,你也可以自己定义Find<name>
     模块,通过SET(CMAKE_MODULE_PATH dir)将其放入工程的某个目录供工程使用
+    
+--list
+Reading
+  list(LENGTH <list> <out-var>)
+  list(GET <list> <element index> [<index> ...] <out-var>)
+  list(JOIN <list> <glue> <out-var>)
+  list(SUBLIST <list> <begin> <length> <out-var>)
+
+Search
+  list(FIND <list> <value> <out-var>)
+
+Modification
+  list(APPEND <list> [<element>...])
+  list(FILTER <list> {INCLUDE | EXCLUDE} REGEX <regex>)
+  list(INSERT <list> <index> [<element>...])
+  list(POP_BACK <list> [<out-var>...])
+  list(POP_FRONT <list> [<out-var>...])
+  list(PREPEND <list> [<element>...])
+  list(REMOVE_ITEM <list> <value>...)
+  list(REMOVE_AT <list> <index>...)
+  list(REMOVE_DUPLICATES <list>)
+  list(TRANSFORM <list> <ACTION> [...])
+
+Ordering
+  list(REVERSE <list>)
+  list(SORT <list> [...])
 ```
 > cmake中的FILE指令
 ```cpp
@@ -756,3 +796,643 @@ ENDIF (WIN32)
         ENDIF (HELLO_FIND_REQUIRED)
     ENDIF (HELLO_FOUND)
 ```
+> cmake的add_custom_command和add_custom_target指令
+```cpp
+1. add_custom_target()
+在很多时候，需要在cmake中创建一些目标，如clean、copy等等，这就需要通过add_custom_target来指定。同时，add_custom_command可以用来完成对add_custom_target生成的target的补充
+    add_custom_target(Name [ALL] [command1 [args1...]]
+                  [COMMAND command2 [args2...] ...]
+                  [DEPENDS depend depend depend ... ]
+                  [BYPRODUCTS [files...]]
+                  [WORKING_DIRECTORY dir]
+                  [COMMENT comment]
+                  [JOB_POOL job_pool]
+                  [VERBATIM] [USES_TERMINAL]
+                  [COMMAND_EXPAND_LISTS]
+                  [SOURCES src1 [src2...]])
+
+cmake_minimum_required(VERSION 3.0)
+project(test)
+add_custom_target(CopyTask
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config ${CMAKE_CURRENT_SOURCE_DIR}/etc
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/log.txt ${CMAKE_CURRENT_SOURCE_DIR}/etc
+  )
+
+mkdir build && cd build
+cmake ..
+make CopyTask //执行目标
+
+初始目录结构
+|---build
+|---config
+        |---log.log
+|---CMakeLists.txt
+|---log.txt
+    
+执行目标之后的目录结构
+|---build
+|---config
+        |---log.log
+|---etc
+        |---log.log
+        |---log.txt
+|---CMakeLists.txt
+|---log.txt
+    
+其实可以看出，这段代码的目的就是将config文件夹的内容和log.txt文件复制到新的etc文件夹内。
+add_custom_target生成一个目标CopyTask，该目标是用来复制文件夹或者复制文件的！也就是COMMAND中定义的操作
+    其中：${CMAKE_COMMAND}(/usr/bin/cmake)是CMake的路径，-E使CMake运行命令而不是构建，copy_directory和copy是cmake_command_line，再后面两个就是command_line的参数。
+当然，生成文件不仅仅只能是复制，还可以是其他的操作。而这些COMMAND操作，都在command_line中规定了。
+至于cmake_command_line的内容，可参考cmake的官方资料;
+https://cmake.org/cmake/help/latest/manual/cmake.1.html#run-a-command-line-tool
+
+该命令的其他一些参数的含义：
+    ALL：表明该目标会被添加到默认的构建目标，使得它每次都被运行；
+    COMMAND：指定要在构建时执行的命令行；
+    DEPENDS：指定命令所依赖的文件；
+    COMMENT：在构建时执行命令之前显示给定消息；
+    WORKING_DIRECTORY：使用给定的当前工作目录执行命令。如果它是相对路径，它将相对于对应于当前源目录的构建树目录；
+    BYPRODUCTS：指定命令预期产生的文件。
+
+    
+2. add_custom_command()
+    将自定义构建规则添加到生成的构建系统。
+2.1 生成文件
+    添加定制命令来生成文件
+    add_custom_command(OUTPUT output1 [output2 ...]
+                   COMMAND command1 [ARGS] [args1...]``
+                   [COMMAND command2 [ARGS] [args2...] ...]
+                   [MAIN_DEPENDENCY depend]
+                   [DEPENDS [depends...]]
+                   [BYPRODUCTS [files...]]
+                   [IMPLICIT_DEPENDS <lang1> depend1
+                                    [<lang2> depend2] ...]
+                   [WORKING_DIRECTORY dir]
+                   [COMMENT comment]
+                   [DEPFILE depfile]
+                   [JOB_POOL job_pool]
+                   [VERBATIM] [APPEND] [USES_TERMINAL]
+                   [COMMAND_EXPAND_LISTS])
+    
+cmake_minimum_required(VERSION 3.0)
+project(test)
+add_custom_command(OUTPUT COPY_RES
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config ${CMAKE_CURRENT_SOURCE_DIR}/etc
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/log.txt ${CMAKE_CURRENT_SOURCE_DIR}/etc
+  )
+add_custom_target(CopyTask ALL DEPENDS COPY_RES)
+
+    add_custom_target生成一个目标CopyTask，该目标依赖于COPY_RES。而对于COPY_RES而言，它实际上是用来复制文件夹或者复制文件的！也就是COMMAND中定义的操作
+    该命令的其他一些参数的含义：
+    OUTPUT：指定命令预期产生的输出文件。如果输出文件的名称是相对路径，即相对于当前的构建的源目录路径；
+    COMMAND：指定要在构建时执行的命令行；
+    DEPENDS：指定命令所依赖的文件；
+    COMMENT：在构建时执行命令之前显示给定消息；
+    WORKING_DIRECTORY：使用给定的当前工作目录执行命令。如果它是相对路径，它将相对于对应于当前源目录的构建树目录；
+    DEPFILE：为生成器指定一个.d depfile .d文件保存通常由自定义命令本身发出的依赖关系；
+    MAIN_DEPENDENCY：指定命令的主要输入源文件；
+    BYPRODUCTS：指定命令预期产生的文件。
+
+    
+2.2 构建事件
+    为某个目标(如库或可执行程序)添加一个定制命令。
+    这种定制命令可以设置在，构建这个目标过程中的某些时机。也就是就，这种场景可以在目标构建的过程中，添加一些额外执行的命令。这些命令本身将会成为该目标的一部分。注意，仅在目标本身被构建过程才会执行。如果该目标已经构建，命令将不会执行。
+那么这些时机是什么呢？如下表所示：
+    参数	       含义
+    PRE_BUILD	在目标中执行任何其他规则之前运行
+    PRE_LINK	在编译源代码之后，链接二进制文件或库文件之前运行
+    POST_BUILD	在目标内所有其他规则均已执行后运行
+    
+   add_custom_command(TARGET <target>
+                   PRE_BUILD | PRE_LINK | POST_BUILD
+                   COMMAND command1 [ARGS] [args1...]
+                   [COMMAND command2 [ARGS] [args2...] ...]
+                   [BYPRODUCTS [files...]]
+                   [WORKING_DIRECTORY dir]
+                   [COMMENT comment]
+                   [VERBATIM] [USES_TERMINAL])
+    
+cmake_minimum_required(VERSION 3.0)
+project(test)
+add_custom_target(CopyTask)
+add_custom_command(TARGET CopyTask
+  POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/config ${CMAKE_CURRENT_SOURCE_DIR}/etc
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/log.txt ${CMAKE_CURRENT_SOURCE_DIR}/etc
+  )
+    
+这段代码的功能和上一段是一样的，将config文件夹的内容和log.txt文件复制到新的etc文件夹内。
+需要注意的是，此时add_custom_command需要写在add_custom_target之后，否则将cmake不通过。
+    该命令的其他一些参数的含义：
+    TARGET：指定命令运行的目标；
+    COMMAND：指定要在构建时执行的命令行；
+    COMMENT：在构建时执行命令之前显示给定消息；
+    WORKING_DIRECTORY：使用给定的当前工作目录执行命令。如果它是相对路径，它将相对于对应于当前源目录的构建树目录；
+    BYPRODUCTS：指定命令预期产生的文件。
+    
+ 
+example1:
+    cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+    project(recipe-01 LANGUAGES CXX)
+    set(CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    2. 我们将自定义目标添加到构建系统中，自定义目标将提取构建目录中的库文件 
+       构建系统中引入了一个名为unpack-eigen的目标。因为我们传递了ALL参数，目标将始终被执行。
+    add_custom_target(unpack-eigen
+      ALL
+      COMMAND
+          ${CMAKE_COMMAND}-E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/eigen-eigen-5a0156e40feb.tar.gz
+      COMMAND
+          ${CMAKE_COMMAND}-E rename eigen-eigen-5a0156e40feb eigen-3.3.4
+      WORKING_DIRECTORY
+          ${CMAKE_CURRENT_BINARY_DIR}
+      COMMENT
+    "Unpacking Eigen3 in ${CMAKE_CURRENT_BINARY_DIR}/eigen-3.3.4"
+    )
+    3. 为源文件添加了一个可执行目标:
+	    add_executable(linear-algebra linear-algebra.cpp)
+    4. 由于源文件的编译依赖于Eigen头文件，需要显式地指定可执行目标对自定义目标的依赖关系:
+	    add_dependencies(linear-algebra unpack-eigen)
+    5. 最后，指定包含哪些目录:
+		target_include_directories(linear-algebra
+      		PRIVATE
+          		${CMAKE_CURRENT_BINARY_DIR}/eigen-3.3.4
+    	)
+            
+    补充：
+    Usage: cmake -E <command>[arguments...]
+    Available commands:
+      capabilities              -Report capabilities built into cmake in JSON format
+      chdir dir cmd [args...]- run command in a given directory
+      compare_files file1 file2 - check if file1 is same as file2
+      copy <file>... destination  - copy files to destination (either file or directory)
+      copy_directory <dir>... destination   - copy content of <dir>... directories to 'destination' directory
+      copy_if_different <file>... destination  - copy files if it has changed
+      echo [<string>...]- displays arguments as text
+      echo_append [<string>...]- displays arguments as text but nonew line
+      env [--unset=NAME]...[NAME=VALUE]... COMMAND [ARG]...
+    - run command in a modified environment
+      environment               - display the current environment
+      make_directory <dir>...- create parent and<dir> directories
+      md5sum <file>...- create MD5 checksum of files
+      sha1sum <file>...- create SHA1 checksum of files
+      sha224sum <file>...- create SHA224 checksum of files
+      sha256sum <file>...- create SHA256 checksum of files
+      sha384sum <file>...- create SHA384 checksum of files
+      sha512sum <file>...- create SHA512 checksum of files
+      remove [-f]<file>...- remove the file(s),use-f to force it
+      remove_directory dir      - remove a directory and its contents
+      rename oldname newname    - rename a file or directory (on one volume)
+      server                    - start cmake in server mode
+      sleep <number>...- sleep for given number of seconds
+      tar [cxt][vf][zjJ] file.tar [file/dir1 file/dir2 ...]
+    - create or extract a tar or zip archive
+      time command [args...]- run command and display elapsed time
+      touch file                - touch a file.
+      touch_nocreate file       - touch a file but donot create it.
+    Available on UNIX only:
+      create_symlink old new- create a symbolic link new-> old
+
+add_custom_command总结
+其实，可以看出尽管官方给了两种的使用情景，但是本质上没有什么区别，区别在于：
+    如果使用OUTPUT参数，需要在目标的构建中指定依赖于该OUTPUT；
+    如果使用TARGET参数，直接指定目标就可以了。
+```
+
+> cmake中的几种include 
+```cpp
+include_directories（）
+target_include_directories（）
+add_executable( xx.cpp     xx.h)
+
+1. include_directories（）
+include_directories（）的影响范围最大，可以为CMakelists.txt后的所有项目添加头文件目录
+一般写在最外层CMakelists.txt中影响全局
+
+2. target_include_directories（）
+target_include_directories（）的影响范围可以自定义。如加关键子PRIVATE或这PUBLIC。
+一般引用库路径使用这个命令，作为外部依赖项引入进来，target是自己项目生成的lib。
+如:
+project(myLib)
+target_include_directories（myLib PRIVATE ${OpenCV_Include_dir}）
+    
+3. add_executable（）
+add_executable( )中添加的引用路径一般是当前目录下的源文件对应的头文件。是生成项目时引入的头文件。
+这种方式一般用于自己写的或某项目需要的头文件，这种方式需要加添加文件名字，而非头文件目录
+如：
+project(addFunc)
+add_executable（addFunc addFunc.h  addFunc.cpp）
+
+    
+1. 指令说明
+target_include_directories()：指定目标包含的头文件路径。
+target_link_libraries()：指定目标链接的库。
+target_compile_options()：指定目标的编译选项。
+目标 由 add_library() 或 add_executable() 生成。
+这三个指令类似，这里以 target_include_directories() 为例进行讲解。
+    
+target_include_directories()和target_link_libraries()
+    如果源文件(例如CPP)中包含第三方头文件，但是头文件（例如hpp）中不包含该第三方文件头，采用PRIVATE。
+    如果源文件和头文件中都包含该第三方文件头，采用PUBLIC。
+    如果头文件中包含该第三方文件头，但是源文件(例如CPP)中不包含，采用 INTERFACE。
+
+ 
+2. 指令讲解
+测试工程目录结构：
+cmake-test/                 工程主目录，main.c 调用 libhello-world.so
+├── CMakeLists.txt
+├── hello-world             生成 libhello-world.so，调用 libhello.so 和 libworld.so
+│   ├── CMakeLists.txt
+│   ├── hello               生成 libhello.so 
+│   │   ├── CMakeLists.txt
+│   │   ├── hello.c
+│   │   └── hello.h         libhello.so 对外的头文件
+│   ├── hello_world.c
+│   ├── hello_world.h       libhello-world.so 对外的头文件
+│   └── world               生成 libworld.so
+│       ├── CMakeLists.txt
+│       ├── world.c
+│       └── world.h         libworld.so 对外的头文件
+└── main.c
+    
+调用关系：
+                                 ├────libhello.so
+可执行文件────libhello-world.so
+                                 ├────libworld.so
+
+关键字用法说明：
+PRIVATE：私有的。生成 libhello-world.so时，只在 hello_world.c 中包含了 hello.h，libhello-world.so 对外的头文件——hello_world.h 中不包含 hello.h。而且 main.c 不会调用 hello.c 中的函数，或者说 main.c 不知道 hello.c 的存在，那么在 hello-world/CMakeLists.txt 中应该写入：
+target_link_libraries(hello-world PRIVATE hello)
+target_include_directories(hello-world PRIVATE hello)
+
+INTERFACE：接口。生成 libhello-world.so 时，只在libhello-world.so 对外的头文件——hello_world.h 中包含 了 hello.h， hello_world.c 中不包含 hello.h，即 libhello-world.so 不使用 libhello.so 提供的功能，只使用 hello.h 中的某些信息，比如结构体。但是 main.c 需要使用 libhello.so 中的功能。那么在 hello-world/CMakeLists.txt 中应该写入：
+target_link_libraries(hello-world INTERFACE hello)
+target_include_directories(hello-world INTERFACE hello)
+
+PUBLIC：公开的。PUBLIC = PRIVATE + INTERFACE。生成 libhello-world.so 时，在 hello_world.c 和 hello_world.h 中都包含了 hello.h。并且 main.c 中也需要使用 libhello.so 提供的功能。那么在 hello-world/CMakeLists.txt 中应该写入：
+target_link_libraries(hello-world PUBLIC hello)
+target_include_directories(hello-world PUBLIC hello)
+
+实际上，这三个关键字指定的是目标文件依赖项的使用范围（scope）或者一种传递（propagate）。
+可执行文件依赖 libhello-world.so， libhello-world.so 依赖 libhello.so 和 libworld.so。
+
+    main.c 不使用 libhello.so 的任何功能，因此 libhello-world.so 不需要将其依赖—— libhello.so 传递给 main.c，hello-world/CMakeLists.txt 中使用 PRIVATE 关键字；main.c 使用 libhello.so 的功能，但是libhello-world.so 不使用，hello-world/CMakeLists.txt 中使用 INTERFACE 关键字；main.c 和 libhello-world.so 都使用 libhello.so 的功能，hello-world/CMakeLists.txt 中使用 PUBLIC 关键字；
+
+3. include_directories(dir)
+target_include_directories() 的功能完全可以使用 include_directories() 实现。但是我还是建议使用 target_include_directories()。为什么？保持清晰！
+include_directories(header-dir) 是一个全局包含，向下传递。什么意思呢？就是说如果某个目录的 CMakeLists.txt 中使用了该指令，其下所有的子目录默认也包含了header-dir 目录。
+上述例子中，如果在顶层的 cmake-test/CMakeLists.txt 中加入：
+include_directories(hello-world)
+include_directories(hello-world/hello)
+include_directories(hello-world/world)
+那么整个工程的源文件在编译时都会增加：
+-I hello-world -I hello-world/hello -I hello-world/world ...
+各级子目录中无需使用 target_include_directories() 或者 include_directories()了。如果此时查看详细的编译过程（make VERBOSE=1）就会发现编译过程是一大坨，很不舒服。
+当然了，在最终子目录的 CMakeLists.txt 文件中，使用 include_directories() 和 target_include_directories() 的效果是相同的。
+    
+4. 目录划分
+每一个目录都是一个模块，目录内部应将对外和对内的头文件进行区分，由模块的调用者决定模块是否被传递（PRIVATE，INTERFACE，PUBLIC）。
+```
+
+> execute_process
+```cpp
+execute_process命令将从当前正在执行的CMake进程中派生一个或多个子进程，从而提供了在配置项目时运行任意命令的方法。可以在一次调用execute_process时执行多个命令。但请注意，每个命令的输出将通过管道传输到下一个命令中。该命令接受多个参数:
+
+    WORKING_DIRECTORY，指定应该在哪个目录中执行命令。
+    RESULT_VARIABLE将包含进程运行的结果。这要么是一个整数，表示执行成功，要么是一个带有错误条件的字符串。
+    OUTPUT_VARIABLE和ERROR_VARIABLE将包含执行命令的标准输出和标准错误。由于命令的输出是通过管道传输的，因此只有最后一个命令的标准输出才会保存到OUTPUT_VARIABLE中。
+    INPUT_FILE指定标准输入重定向的文件名
+    OUTPUT_FILE指定标准输出重定向的文件名
+    ERROR_FILE指定标准错误输出重定向的文件名
+    设置OUTPUT_QUIET和ERROR_QUIET后，CMake将静默地忽略标准输出和标准错误。
+    设置OUTPUT_STRIP_TRAILING_WHITESPACE，可以删除运行命令的标准输出中的任何尾随空格
+    设置ERROR_STRIP_TRAILING_WHITESPACE，可以删除运行命令的错误输出中的任何尾随空格。
+    set(_module_name "cffi")
+    execute_process(
+      COMMAND
+          ${PYTHON_EXECUTABLE}"-c""import ${_module_name}; print(${_module_name}.__version__)"
+      OUTPUT_VARIABLE _stdout
+      ERROR_VARIABLE _stderr
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_STRIP_TRAILING_WHITESPACE
+    )
+    if(_stderr MATCHES "ModuleNotFoundError")
+        message(STATUS "Module ${_module_name} not found")
+    else()
+      message(STATUS "Found module ${_module_name} v${_stdout}")
+    endif()
+        
+    输出：
+        --FoundPythonInterp:/home/user/cmake-cookbook/chapter-05/recipe-02/example/venv/bin/python (found version "3.6.5")
+		--Foundmodule cffi v1.11.5
+```
+
+> get_filename_component
+```cpp
+get_filename_component(<VAR> <FileName> <COMP> [CACHE])
+Set <VAR> to a component of <FileName>, where <COMP> is one of:
+DIRECTORY = Directory without file name
+NAME      = File name without directory
+EXT       = File name longest extension (.b.c from d/a.b.c)
+NAME_WE   = File name without directory or longest extension
+ABSOLUTE  = Full path to file
+REALPATH  = Full path to existing file with symlinks resolved
+PATH      = Legacy alias for DIRECTORY (use for CMake <= 2.8.11)
+```
+
+
+# cmake 交叉编译
+
+```cpp
+cmake交叉编译配置
+    CMake给交叉编译预留了一个很好的变量CMAKE_TOOLCHAIN_FILE，它定义了一个文件的路径，这个文件即toolChain，里面set了一系列你需要改变的变量和属性，包括C_COMPILER,CXX_COMPILER,如果用Qt的话需要更改QT_QMAKE_EXECUTABLE以及如果用BOOST的话需要更改的BOOST_ROOT(具体查看相关Findxxx.cmake里面指定的路径)。CMake为了不让用户每次交叉编译都要重新输入这些命令，因此它带来toolChain机制，简而言之就是一个cmake脚本，内嵌了你需要改变以及需要set的所有交叉环境的设置;
+
+# toolChainz中的变量可以在CMakeLists.txt中使用
+# toolChain的主要作用是可以让程序员选择性指定文件编译
+toolChain脚本中设置的几个重要变量
+1. CMAKE_SYSTEM_NAME
+即你目标机target所在的操作系统名称，比如ARM或者Linux你就需要写"Linux",如果Windows平台你就写"Windows",如果你的嵌入式平台没有相关OS你即需要写成"Generic",只有当CMAKE_SYSTEM_NAME这个变量被设置了，CMake才认为此时正在交叉编译，它会额外设置一个变量CMAKE_CROSSCOMPILING为TRUE.
+    
+2. CMAKE_C_COMPILER
+    顾名思义，即C语言编译器，这里可以将变量设置成完整路径或者文件名，设置成完整路径有一个好处就是CMake会去这个路径下去寻找编译相关的其他工具比如linker,binutils等，如果你写的文件名带有arm-elf等等前缀，CMake会识别到并且去寻找相关的交叉编译器。
+
+3.CMAKE_CXX_COMPILER
+    同上，此时代表的是C++编译器。
+    
+4.CMAKE_FIND_ROOT_PATH
+    指定了一个或者多个优先于其他搜索路径的搜索路径。比如你设置了/opt/arm/，所有的Find_xxx.cmake都会优先根据这个路径下的/usr/lib,/lib等进行查找，然后才会去你自己的/usr/lib和/lib进行查找，如果你有一些库是不被包含在/opt/arm里面的，你也可以显示指定多个值给
+set(CMAKE_FIND_ROOT_PATH /opt/arm /opt/inst)
+    
+5.CMAKE_FIND_ROOT_PATH_MODE_PROGRAM
+	对FIND_PROGRAM()起作用，有三种取值，NEVER,ONLY,BOTH,第一个表示不在你CMAKE_FIND_ROOT_PATH下进行查找，第二个表示只在这个路径下查找，第三个表示先查找这个路径，再查找全局路径，对于这个变量来说，一般都是调用宿主机的程序，所以一般都设置成NEVER
+
+6.CMAKE_FIND_ROOT_PATH_MODE_LIBRARY
+     对FIND_LIBRARY()起作用，表示在链接的时候的库的相关选项，因此这里需要设置成ONLY来保证我们的库是在交叉环境中找的.
+
+7.CMAKE_FIND_ROOT_PATH_MODE_INCLUDE
+    对FIND_PATH()和FIND_FILE()起作用，一般来说也是ONLY,如果你想改变，一般也是在相关的FIND命令中增加option来改变局部设置，有NO_CMAKE_FIND_ROOT_PATH,ONLY_CMAKE_FIND_ROOT_PATH,BOTH_CMAKE_FIND_ROOT_PATH
+
+8.BOOST_ROOT
+    对于需要boost库的用户来说，相关的boost库路径配置也需要设置，因此这里的路径即ARM下的boost路径，里面有include和lib
+    
+9.QT_QMAKE_EXECUTABLE
+    对于Qt用户来说，需要更改相关的qmake命令切换成嵌入式版本，因此这里需要指定成相应的qmake路径（指定到qmake本身）
+```
+
+# cmake:macro,function中ARGV,ARGN参数的区别
+```cpp
+cmake中的宏(macro)和函数(function)都支持动态参数
+变量ARGC记录传入的参数个数
+变量ARGV0,ARGV1,...顺序代表传入的参数
+变量ARGV则是一个包含所有传入参数的list
+变量ARGN也是一个包含传入参数的list，但不是所有参数，而是指macro/function声明的参数之后的所有传入参数
+
+example1
+# 定义一个宏，显式声明了两个参数hello,world
+macro(argn_test hello world)
+	MESSAGE(STATUS ARGV=${ARGV})
+	MESSAGE(STATUS ARGN=${ARGN})
+	MESSAGE(STATUS ARGV0=${ARGV0})
+	MESSAGE(STATUS ARGV1=${ARGV1})
+	MESSAGE(STATUS ARGV2=${ARGV2})
+	MESSAGE(STATUS ARGV3=${ARGV3})
+endmacro
+
+# 调用宏时传入4个参数
+argn_test(TOM JERRY SUSAN BERN)
+
+# 输出结果
+-- ARGV=TOMJERRYSUSANBERNexample2
+-- ARGN=SUSANBERN
+-- ARGV0=TOM
+-- ARGV1=JERRY
+-- ARGV2=SUSAN
+-- ARGV3=BERN
+    
+example2
+使用cmake的cmake_parse_arguments来解析函数参数，它有点像解析一个map键值对，首先看下它的函数原型：
+    
+include (CMakeParseArguments)  #必须包含这个cmake文件才能使用cmake_parse_arguments
+CMAKE_PARSE_ARGUMENTS(<prefix> <options> <one_value_keywords> <multi_value_keywords> args...)
+ 
+首先，prefix是一个前缀，等会儿在引用参数的时候会提到，<option>是一个列表，里面可以包含一些你感兴趣的KeyWord，随后可以通过它来看看你所需要的KeyWord是否被设置。 <one_value_keywords>是一个单值参数的KeyWord列表。 <multi_value_keywords> 是一个多值参数的KeyWord列表（如list），下面举个例子，看看如何使用它们，首先定义所需要的函数，由于参数是由CMAKE_PARSE_ARGUMENTS来解析的，所以在函数声明中就不需要定义参数了：
+    
+function(tst_arguments)
+  (
+    TEST "" "NAME;COMMAND;BASELINE"
+       "ARGSLIST"
+       ${ARGN}
+  )
+  message("TEST_DEFAULT_ARGS is ${TEST_DEFAULT_ARGS} from ${ARGN}")
+  message("TEST_NAME is ${TEST_NAME}")
+  message("TEST_COMMAND is ${TEST_COMMAND}")
+  message("TEST_ARGSLIST is ${TEST_ARGSLIST}")
+  message("TEST_BASELINE is ${TEST_BASELINE}")
+endfunction(tst_arguments)
+这里的前缀是TEST， <one_value_keywords>我们设置单值参数的KeyWord（NAME;COMMAND;BASELINE），这将在随后的函数调用中注明KeyWord和Value的关系，<multi_value_keywords>我们设置多值参数的KeyWord（"ARGSLIST"），调用函数：
+
+tst_arguments(
+    NAME
+      testiso
+    COMMAND
+      "RunMe"
+    ARGSLIST
+      ${SRC}//a.cpp;b.cpp;c.cpp;d.cpp;
+    BASELINE
+      "/home/sakaue/iWork"
+)
+
+==== output ====
+TEST_DEFAULT_ARGS is  from NAME;testiso;COMMAND;RunMe;ARGSLIST;a.cpp;b.cpp;c.cpp;d.cpp;BASELINE;/home/sakaue/iWork
+TEST_NAME is testiso
+TEST_COMMAND is RunMe
+TEST_ARGSLIST is a.cpp;b.cpp;c.cpp;d.cpp
+TEST_BASELINE is /home/sakaue/iWork
+
+example3:
+cmake_minimum_required(VERSION 3.5)
+project(test)
+function(test_prase)
+    set(options op1 op2 op3)
+    set(oneValueArgs v1 v2 v3)
+    set(multiValueArgs m1 m2)
+    messages(STATUS "options=${options}")
+    messages(STATUS "oneValueArgs=${oneValueArgs}")
+    messages(STATUS "multiValueArgs=${multiValueArgs}")
+    cmake_parse_arguments(MYPER "${options}" "${oneValeArgs}" "${multiValueArgs}" ${ARGN})
+    messages(STATUS "op1=${MYPER_op1}")
+    messages(STATUS "op2=${MYPER_op2}")
+    messages(STATUS "op3=${MYPER_op3}")
+    
+    messages(STATUS "v1=${MYPER_v1}")
+    messages(STATUS "v2=${MYPER_v2}")
+    messages(STATUS "v3=${MYPER_v3}")
+    
+    messages(STATUS "m1=${MYPER_m1}")
+    messages(STATUS "m2=${MYPER_m2}")
+endfunction(test_prase)
+    
+messages(STATUS "\n")
+test_prase(op1 op2 op3 v1 aaa v2 111 v3 bbb m1 1 2 3 4 5 m2 a b c)
+    
+messages(STATUS "\n")
+test_prase(op1 op3 v1 aaa v2 111 v3 bbb m1 1 2 3 4 5 m2 a b c)
+    
+messages(STATUS "\n")
+test_prase(op1 op3 v1 aaa v2 v3 bbb m1 1 2 3 4 5)
+    
+messages(STATUS "\n")
+test_prase(op1 v1 aaa v2 111 v3 bbb m1 1 2 3 4 5 m2 a b c op3)
+    
+输出：
+    options = op1;op2;op3;
+	oneValueArgs=v1;v2;v3;
+	multiValueArgs=m1;m2;
+	op1 = TRUE
+    op2 = TRUE
+    op3 = TRUE
+    v1 = aaa
+    v2 = 111
+    v3 = bbb
+    m1 = 1;2;3;4;5
+    m2 = a;b;c;
+
+    options = op1;op2;op3;
+	oneValueArgs=v1;v2;v3;
+	multiValueArgs=m1;m2;
+	op1 = TRUE
+    op2 = FALSE
+    op3 = TRUE
+    v1 = aaa
+    v2 = 111
+    v3 = bbb
+    m1 = 1;2;3;4;5
+    m2 = a;b;c;
+
+    options = op1;op2;op3;
+	oneValueArgs=v1;v2;v3;
+	multiValueArgs=m1;m2;
+	op1 = TRUE
+    op2 = False
+    op3 = TRUE
+    v1 = aaa
+    v2 = 
+    v3 = bbb
+    m1 = 1;2;3;4;5
+    m2
+        
+    options = op1;op2;op3;
+	oneValueArgs=v1;v2;v3;
+	multiValueArgs=m1;m2;
+	op1 = TRUE
+    op2 = TRUE
+    op3 = TRUE
+    v1 = aaa
+    v2 = 
+    v3 = bbb
+    m1 = 1;2;3;4;5
+    m2 = a;b;c;
+```
+
+
+# cmake两种变量的原理
+
+```cpp
+本文记录一下 CMake 变量的定义、原理及其使用。CMake 变量包含 Normal Variables、Cache Variables。通过 set 指令可以设置两种不同的变量。也可以在 CMake 脚本中使用和设置环境变量。set(ENV{<variable>} <value>...)，本文重点讲述 CMake 脚本语言特有的两种变量。
+    
+
+1. Normal Variables
+    通过 set(<variable> <value>... [PARENT_SCOPE])这个命令来设置的变量就是 Normal Variables。例如 set(MY_VAL "666") ，此时 MY_VAL 变量的值就是 666。
+    
+2.Cache Variables
+    通过 set(<variable> <value>... CACHE <type> <docstring> [FORCE])这个命令来设置的变量就是 Cache Variables。例如 set(MY_CACHE_VAL "666" CACHE STRING INTERNAL)，此时 MY_CACHE_VAL 就是一个 CACHE 变量。
+
+example1
+.
+├── CMakeLists.txt
+└── src
+    └── CMakeLists.txt
+    
+根目录 CMakeLists.txt 文件内容如下:
+cmake_minimum_required(VERSION 3.10)
+set(MY_GLOBAL_VAR "666" CACHE STRING INTERNAL )
+message("第一次在父目录 CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
+message("第一次在父目录 MY_GLOBAL_VAR=${MY_GLOBAL_VAR}")
+add_subdirectory(src)
+message("第二次在父目录 CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
+message("第二次在父目录 MY_GLOBAL_VAR=${MY_GLOBAL_VAR}")
+set(CMAKE_INSTALL_PREFIX "-->usr" )
+message("第三次在父目录 CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
+
+src/CMakeLists.txt 文件内容如下:
+cmake_minimum_required(VERSION 3.10)
+message("子目录,CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
+message("子目录,MY_GLOBAL_VAR=${MY_GLOBAL_VAR}")
+set(CMAKE_INSTALL_PREFIX "/usr" CACHE STRING INTERNAL FORCE)
+set(MY_GLOBAL_VAR "777" CACHE STRING INTERNAL FORCE )
+    
+$ cmake .
+第一次在父目录 CMAKE_INSTALL_PREFIX=/usr/local
+第一次在父目录 MY_GLOBAL_VAR=666
+子目录,CMAKE_INSTALL_PREFIX=/usr/local
+子目录,MY_GLOBAL_VAR=666
+第二次在父目录 CMAKE_INSTALL_PREFIX=/usr
+第二次在父目录 MY_GLOBAL_VAR=777
+第三次在父目录 CMAKE_INSTALL_PREFIX=-->usr
+    
+tips:
+对于修改 Cache 变量的另一种方式就是cmake -D CMAKE_INSTALL_PREFIX=/usr。可以自己验证。这里说一个重要的点，就是在终端中输入的 cmake -D var=value . 如果 CMake 中默认有这个 var Cache 变量，那么此时就是赋值，没有的话，CMake 就会默认创建了一个全局 Cache 变量然后赋值。(tips: $CACHE{VAR}表示获取 CACHE 缓存变量的值)
+    
+1. 总结：
+    结合 include() 、macro() 最后结果，能够得出一个结论：通过 include() 和 macro() 相当于把这两部分包含的代码直接加入根目录 CMakeLists.txt 文件中去执行，相当于他们是一个整体。因此变量直接都是互通的。这就有点像 C/C++ 中的 #include 包含头文件的预处理过程了。这一点其实与刚开始讲的 function() 、add_subdirectory() 完全不同，在函数以及 add_subdirectory() 中，他们本身就是一个不同的作用域范围，仅仅通过拷贝调用者的 Normal 值(仅仅在调用 add_subdirectory() / function() 之前的 Normal 变量)，如果要修改调用者包含的 Normal 变量，那么只能通过 set(MY_VAL "某个值" PARENT_SCOPE)注明我们修改的是调用者 Normal 值。虽然在 C/C++ 中，可以通过指针的方式，通过函数可以修改外部变量值，但是在 CMake 脚本语言中 function() 虽然能够传入形式参数，但是者本质上就是 C/C++ 中的值拷贝。而不是引用。上面所说的 Normal 变量其实就是一个局部变量。
+    
+2、Cache Variables
+    ache 变量 CMAKE_INSTALL_PREFIX 默认值是 /usr/local (可以在生成的 CMakeCache.txt 文件中查看)，这时候如果我们 在某个 CMakeLists.txt 中，仍然使用 set(CMAKE_INSTALL_PREFIX "/usr")，那么此时我们 install 的时候，CMake 以后面的 /usr 作为 CMAKE_INSTALL_PREFIX 的值，这是因为 CMake 规定，有一个与 Cache 变量同名的 Normal 变量出现时，后面使用这个变量的值都是以 Normal 为准，如果没有同名的 Normal 变量，CMake 才会自动使用 Cache 变量。
+所有的 Cache 变量都会出现在 CMakeCache.txt 文件中。这个文件是我们键入 cmake .命令后自动出现的文件。打开这个文件发现，CMake 本身会有一些默认的全局 Cache 变量。例如：CMAKE_INSTALL_PREFIX、CMAKE_BUILD_TYPE、CMAKE_CXX_FLAGSS 等等。可以自行查看。当然，我们自己定义的 Cache 变量也会出现在这个文件中。Cache 变量定义格式为 set(<variable> <value> CACHE STRING INTERNAL)。这里的 STRING可以替换为 BOOL FILEPATH PATH ，但是要根据前面 value 类型来确定。参考。
+修改 Cache 变量。可以通过 set(<variable> <value> CACHE INSTERNAL FORCE)，另一种方式是直接在终端中使用 cmake -D var=value .. 来设定默认存在的CMake Cache 变量。
+```
+
+# cmake (Linux ar合并多个静态库)
+
+```cpp
+为什么要合并多个静态库
+
+实际嵌入式项目开发中我们经常会使用静态库，这些静态库一般都是通过自动构建工具来生成。这种方式虽然很方便，但当静态库的数量非常多的时候管理起来就不太容易了。这时我们可以尝试将这些静态库进行合并，这样就能够减少静态库的数量，从而减轻【管理多个静态库的工作量】。
+ar 命令
+使用 GNU 编译套件来编译并打包生成静态库时，ar 命令完成打包生成静态库的任务。ar 命令既可以创建新的静态库，也可以查看、修改已经生成的静态库。这里要合并静态库从 ar 命令着手是一个比较好的方向。
+    
+查看命令说明文档
+如果你是在 Windows 中使用交叉编译器来编译，那么你可以在编译器的安装目录的【share】子目录中找到 GNU 编译器相关的文档。ar 命令手册并不在独立的文档中，它在【binutils.pdf】 中。
+
+查看与 ar 命令相关的部分，我发现 ar 命令可以使用脚本来进行控制。按照手册的描述，这里提到的脚本与 【MRI “librarian”】 程序使用的脚本一致。脚本实际非常简单，提供了几种不同的命令来使用。你可以在 ar 的交互式模式中输入这些命令来操作，也可以预先将这些命令写入到文件中，以这个文件来重定向标准输入也能完成控制，这里我使用后者。
+    
+ar 控制脚本的主要内容
+研究发现这个脚本的内容可以分为如下几个方面：
+    使用 create、open 来指定一个当前使用的静态库，这个静态库是大部分其它命令需要的临时文件
+    create 用于【创建】新的文件，open 用于【打开】已经存在的静态库。
+    打开一个静态库后，你可以执行【添加、删除、替换、提取、查看】等命令
+    执行 save 命令【保存修改】到文件中
+    执行 end 退出 ar，并返回 0 表示操作成功执行。这个命令并不会保存输出文件。这也就意味着你在最后一次 save 命令执行后如果还执行了其它修改库的命令，这些修改将会【丢失】。
+
+一个示例
+下面是我用【awtk】编译出的静态库进行的测试。脚本内容如下：
+    create  libawtk-all.a
+    addlib  libassets.a
+    addlib  libawtk.a
+    addlib  libcommon.a
+    addlib  libfont_gen.a
+    addlib  libglad.a
+    addlib  libgpinyin.a
+    addlib  libimage_gen.a
+    addlib  liblinebreak.a
+    addlib  libnanovg.a
+    addlib  libSDL2.a
+    addlib  libstr_gen.a
+    addlib  libtheme_gen.a
+    save
+    end
+上述脚本将【awtk】中 lib 目录下的所有静态库合并为一个命名为 libawtk-all.a 的静态库。
+将上述文件保存为 ar-src 文件，执行 ar -M < ar-src 命令就能够完成静态库的合并。执行结果如下：
+```
+
