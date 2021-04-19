@@ -99,19 +99,29 @@ public:
 
     //创建一个迭代器对象
     virtual Iterator_ptr<T> creatInterator() {
-        return std::make_shared<concreatInterator<T>>(shared_from_this());
+        /*对于模板，调用内部函数需要加this，不然会报错*/
+        return std::make_shared<concreatInterator<T>>(this->shared_from_this());
     }
 };
 
 int main(){
-    container_ptr<int> con = std::make_shared<concreatContainer<int>>();
-    con->pushItem(1);
-    con->pushItem(2);
-    con->pushItem(3);
+    container_ptr<int> conInt = std::make_shared<concreatContainer<int>>();
+    conInt->pushItem(1);
+    conInt->pushItem(2);
+    conInt->pushItem(3);
+    Iterator_ptr<int> inerInt = conInt->creatInterator();
+    for (inerInt->first(); !(inerInt->isEnd()); inerInt->next()) {
+        std::cout << *(inerInt->curItem()) << std::endl;
+    }
 
-    Iterator_ptr<int> iner = con->creatInterator();
-    for (iner->first(); !(iner->isEnd()); iner->next()) {
-        std::cout << *(iner->curItem()) << std::endl;
+    container_ptr<std::string> conString = std::make_shared<concreatContainer<std::string>>();
+    conString->pushItem("steve");
+    conString->pushItem("he");
+    conString->pushItem("jiaxiong");
+
+    Iterator_ptr<std::string> inerString = conString->creatInterator();
+    for (inerString->first(); !(inerString->isEnd()); inerString->next()) {
+        std::cout << *(inerString->curItem()) << std::endl;
     }
 
     return 0;
