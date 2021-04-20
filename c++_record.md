@@ -1441,3 +1441,99 @@ int main() {
     }
 
 ```
+## 12 . auto 和 register, decltype关键字
+
+> register
+```cpp
+在早期c语言编译器不会对代码进行优化，因此使用register关键字修饰变量是很好的补充，大大提高的速度。
+register关键字请求让编译器将变量a直接放入寄存器里面，以提高读取速度，在C语言中register关键字修饰的变量不可以被取地址，但是c++中进行了优化。
+    c++中依然支持register关键字，但是c++编译器也有自己的优化方式，即某些变量不用register关键字进行修饰，编译器也会将多次连续使用的变量优化放入寄存器中，例如入for循环的循环变量i。
+    c++中也可以对register修饰的变量取地址，不过c++编译器发现程序中需要取register关键字修饰的变量的地址时，register关键字的声明将变得无效。
+```
+
+> auto
+
+```cpp
+auto的自动类型推断发生在编译期，所以使用auto并不会造成程序运行时效率的降低。例如上面的代码，编译的时候，就会把a变量转换为int类型
+    auto和其他变量类型有明显的区别：
+1.auto声明的变量必须要初始化，否则编译器不能判断变量的类型。
+2.auto不能被声明为返回值，auto不能作为形参，auto不能被修饰为模板参数
+    
+- auto 变量必须在定义时初始化，这类似于const关键字。 
+- 定义在一个auto序列的变量必须始终推导成同一类型。例如:
+auto a4 = 10, a5 = 20, a6 = 30;//正确
+auto b4 = 10, b5 = 20.0, b6 = 'a';//错误,没有推导为同一类型
+
+如果auto关键字带上&号，则不去除const语意。
+const int a2 = 10;
+auto &b2 = a2;//因为auto带上&，故不去除const，b2类型为const int
+b2 = 10; //非法
+
+如果初始化表达式为const或volatile（或者两者兼有），则除去const/volatile语义
+const int a1 = 10;
+auto  b1= a1; //b1的类型为int而非const int（去除const）
+const auto c1 = a1;//此时c1的类型为const int
+b1 = 100;//合法
+c1 = 100;//非法
+
+如果初始化表达式是引用，则去除引用语义。
+int a = 10;
+int &b = a;
+auto c = b;//c的类型为int而非int&（去除引用）
+auto &d = b;//此时d的类型才为int&
+c = 100;//a =10;
+d = 100;//a =100;
+
+初始化表达式为数组时，auto关键字推导类型为指针。
+int a3[3] = { 1, 2, 3 };
+auto b3 = a3;
+cout << typeid(b3).name() << endl;  ==> int *
+    
+若表达式为数组且auto带上&，则推导类型为数组类型。
+int a7[3] = { 1, 2, 3 };
+auto & b7 = a7;
+cout << typeid(b7).name() << endl; ==> int[3]
+
+函数或者模板参数不能被声明为auto
+void func(auto a)  //错误
+{
+    //... 
+}
+
+时刻要注意auto并不是一个真正的类型。
+auto仅仅是一个占位符，它并不是一个真正的类型，不能使用一些以类型为操作数的操作符，如sizeof或者typeid。
+时刻要注意auto并不是一个真正的类型。
+auto仅仅是一个占位符，它并不是一个真正的类型，不能使用一些以类型为操作数的操作符，如sizeof或者typeid。
+    
+C++不允许直接推导auto返回类型，如果要用auto返回类型，需要用decltype 声明尾返回类型
+如下面代码：
+template<typename A,typename B>
+auto add(A x, B y) ->decltype(x + y)
+{
+
+    return x + y;
+}
+```
+
+> ## decltype
+
+```cpp
+decltype关键字和auto相互对应的，它们经常在一些场所配合使用。decltype可以在编译的时候判断出一个变量或者表达式的类型，例如：
+    #include <iostream>
+    #include <vector>
+    #include <map>
+    using namespace std;
+
+    void func(auto can) {
+        int a;
+    }
+
+    int main() {
+        auto num = 1;  //num 是int类型
+        decltype(num) num2 = num; //num2 也是int类型
+
+        return 0;
+    }
+
+```
+
