@@ -1305,6 +1305,36 @@ MAsgn = 0
     }
 如果T是可移动的，那么整个操作会很高效，如果不可移动，那么就和普通的交换函数是一样的，不会发生什么错误，很安全。
 ```
+>浅谈std::forward
+```cpp
+td::forward通常是用于完美转发的，它会将输入的参数原封不动地传递到下一个函数中，这个“原封不动”指的是，如果输入的参数是左值，那么传递给下一个函数的参数的也是左值；如果输入的参数是右值，那么传递给下一个函数的参数的也是右值。一个经典的完美转发的场景是：
+
+    template <class... Args>
+    void forward(Args&&... args) {
+        f(std::forward<Args>(args)...);
+    }
+需要注意的有2点：1、输入参数的类型是Args&&... ， &&的作用是引用折叠，其规则是：
+    && && -> &&
+    & && -> &
+    & & -> &
+    && & -> &
+    由于我们需要保留输入参数的右值属性，因此Args后面需要跟上&&；2、std::forward的模板参数必须是<Args>，而不能是<Args...>，这是由于我们不能对Args进行解包之后传递给std::forward，而解包的过程必须在调用std::forward之后.
+    那么std::forward为什么可以达到这一一个作用呢，我们看一下其实现代码：
+
+    template<class T>
+    constexpr T&& forward(std::remove_reference_t<T>& arg) noexcept{
+        // forward an lvalue as either an lvalue or an rvalue
+        return (static_cast<T&&>(arg));
+    }
+
+    template<class T>
+    constexpr T&& forward(std::remove_reference_t<T>&& arg) noexcept{
+        // forward an rvalue as an rvalue
+        return (static_cast<T&&>(arg));
+    }
+
+    std::remove_reference_t是一个模板类的类型别名，用于去掉T的引用属性（但不会去掉const属性，const属性可以用std::remove_const_t来去掉）；如果forward接受的参数为左值的话，它将其转化成右值返回，这样既可以传给左值，又可以传给右值；如果传递的参数是个右值的话，它将其保留右值属性返回，这样只可以返回给右值。
+```
 
 > 总结
 
