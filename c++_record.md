@@ -245,9 +245,530 @@ b = a ;   //调用赋值函数(b存在)
               对象存在，用别的对象来给它赋值，就是赋值函数。
 ```
 
-## 4. c++中的右值引用、移动语义和完美转发
+## 4. C++中继承详解
+
+>继承的权限有三种
+```cpp
+1. 私有继承：基类中的非私有成员都为派生类的私有成员
+2. 保护继承：基类中的非私有成员在派生类中的访问属性都降一级(公有变保护，保护变保护)
+3. 公有继承：基类中的非私有成员在派生类中的访问属性保持不变
+注意：基类中的私有成员，子类能继承，但是子类不能直接访问，需要使用父类提供的方法才能访问该变量。改方法是从父类继承中得到的protected、public方法来访问
+注意：派生类从基类公有继承时，派生类的成员函数可以直接访问基类的公有成员，但不能访问基类的私有成员
+    为了便于派生类的访问，可以将基类的私有成员中需要提供给派生类访问的成员定义为保护成员
+    派生类可以访问protected权限的成员但是派生类的对象不能访问基类的成员
+
+4. 访问权限
+public：类内、类的对象；派生类内、派生类对象--->>均可访问。
+protected：类内、派生类内--->>可以访问；类的对象、派生类的对象-->>不可访问。
+private：只有类内部-->>可以访问；类的对象、派生类、派生类的对象，统统的-->>不可访问(可以使用父类提供的方法才能访问该变量)。
+```
+>继承的特性
+```cpp
+class的缺省的继承方式是私有继承
+struct的缺省继承方式是公有继承
+子类拥有父类的所有属性和行为
+子类就是一种特殊的父类
+子类对象可以当作父类对象使用
+1.子类对象可以给父类对象赋值
+2.父类对象不能赋值给子类对象
+3.父类对象的指针/引用可以指向子类对象
+4.子类的指针/引用不能指向父类对象(强制类型转换)
+5.友元关系：不能被继承，因为友元函数不是类的成员；
+6.静态成员变量： 可以被继承，且是同一个变量；
+```
+
+>同名隐藏
+```cpp
+在基类和派生类中，具有相同名称的成员（成员函数||成员变量），如果用派生类对象去访问继承体系中的同名成员，只能访问到自己的，基类的成员无法访问；
+只能通过加基类作用域的方式去访问相同成名的基类成员；
+且优先给派生类中自己的成员变量和成员函数赋值；
+```
+
+>子类构造函数和父类构造之间的关系
+```cpp
+在子类对象构造时，需要调用父类构造函数对其继承得来的成员进行初始化(父类先构造)
+在子类对象析构时，需要调用父类析构函数对其继承得来的成员进行清理(子类先析构)
+```
+
+>c++创建一个子类对象时会调用父类的构造函数，那么会创建父类对象吗？
+
+```cpp
+不会创建另外一个父类对象，只是初始化子类中属于父类的成员。创建一个对象的时候，发生了两件事情，一是分配对象所需的内存，二是调用构造函数进行初始化。子类对象包含从父类对象继承过来的成员，实现上来说，一般也是子类的内存区域中有一部分就是父类的内存区域。调用父类构造函数的时候，这块父类对象的内存区域就被初始化了。为了避免未初始化的问题，语法强制子类调用父类构造函数。
+    
+构造方法用来初始化类的对象，与父类的其它成员不同，它不能被子类继承（子类可以继承父类所有的成员变量和成员方法，但不继承父类的构造方法）。因此，在创建子类对象时，为了初始化从父类继承来的数据成员，系统需要调用其父类的构造方法。
+如果没有显式的构造函数，编译器会给一个默认的构造函数，并且该默认的构造函数仅仅在没有显式地声明构造函数情况下创建。
+    1. 如果子类没有定义构造方法，则调用父类的无参数的构造方法。
+    2. 如果子类定义了构造方法，不论是无参数还是带参数，在创建子类的对象的时候,首先执行父类无参数的构造方法，然后执行自己的构造方法。
+    3. 在创建子类对象时候，如果子类的构造函数没有显示调用父类的构造函数，则会调用父类的默认无参构造函数。
+    4. 在创建子类对象时候，如果子类的构造函数没有显示调用父类的构造函数且父类自己提供了无参构造函数，则会调用父类自己的无参构造函数。
+    5. 在创建子类对象时候，如果子类的构造函数没有显示调用父类的构造函数且父类只定义了自己的有参构造函数，则会出错（如果父类只有有参数的构造方法，则子类必须显示调用此带参构造方法）。
+    6. 如果子类调用父类带参数的构造方法，需要用初始化父类成员对象的方式，比如：
+    class animal
+    animal(int height, int weight)
+    class fish:public animal
+    fish():animal(400,300)
+```
+
+> 虚继承
+
+```cpp
+对于菱形继承
+D继承于BC,BC继承于A;
+    类D中的成员变量 int a，如果访问a，就会出现二义性问题，到底是B中的a，还是C中的A，并且会造成数据冗余问题。
+其中，对于二义性问题，我们加访问限定即可。例如 B::a 或者C::a；但对于数据冗余问题却没有办法解决。
+于是C++中就引入了虚拟继承
+        
+#include<iostream>  
+using namespace std;  
+class A  //大小为4  
+{  
+    public:  
+    int a;  
+};  
+class B :virtual public A  //大小为12，变量a,b共8字节，虚基类表指针4  
+{  
+    public:  
+    int b;  
+};  
+
+class C :virtual public A //与B一样12 
+{  
+    public:  
+    int c;  
+};  
+
+class D :public B, public C //24,变量a,b,c,d共16，B的虚基类指针4，C的虚基类指针  
+{  
+    public:  
+    int d;  
+};  
+
+int main()  
+{  
+    A a;  
+    B b;  
+    C c;  
+    D d;  
+    cout << sizeof(a) << endl;  
+    cout << sizeof(b) << endl;  
+    cout << sizeof(c) << endl;  
+    cout << sizeof(d) << endl;  
+    return 0;  
+}
+
+虚拟继承和普通继承的区别
+    如果一个类中有虚函数，那么就会有一个虚表，有一个指针指向这个虚表;
+    对于普通继承，继承的虚函数和本有的虚函数共用同一个虚表;
+    但对于虚拟继承来说，不管是基类还是派生类都需要有一个指针来维护自己的虚表，并且还要有一个指针指向虚基表，其中存放偏移量;
+```
+
+## 5. c++中的友元函数
+```cpp
+类的友元函数是定义在类外部，但有权访问类的所有私有（private）成员和保护（protected）成员。尽管友元函数的原型有在类的定义中出现过，但是友元函数并不是成员函数。
+友元可以是一个函数，该函数被称为友元函数；友元也可以是一个类，该类被称为友元类，在这种情况下，整个类及其所有成员都是友元。
+如果要声明函数为一个类的友元，需要在类定义中该函数原型前使用关键字 friend，如下所示：
+
+//友元类和友元函数的使用
+#include <iostream>
+using namespace std;
+class Box
+{
+    double width;
+public:
+    friend void printWidth(Box box);
+    friend class BigBox;
+    void setWidth(double wid);
+};
+class BigBox
+{
+public :
+    void Print(int width, Box &box){
+        // BigBox是Box的友元类，它可以直接访问Box类的任何成员
+        box.setWidth(width);
+        cout << "Width of box : " << box.width << endl;
+    }
+};
+// 成员函数定义
+void Box::setWidth(double wid){
+    width = wid;
+}
+// 请注意：printWidth() 不是任何类的成员函数
+void printWidth(Box box) {
+    /* 因为 printWidth() 是 Box 的友元，它可以直接访问该类的任何成员 */
+    cout << "Width of box : " << box.width << endl;
+}
+
+// 程序的主函数
+int main()
+{
+    Box box;
+    BigBox big;
+    // 使用成员函数设置宽度
+    box.setWidth(10.0);
+    // 使用友元函数输出宽度
+    printWidth(box);
+    // 使用友元类中的方法设置宽度
+    big.Print(20, box);
+    getchar();
+    return 0;
+}
+
+注意：
+1. 因为友元函数没有this指针，则参数要有三种情况： 
+2. 要访问非static成员时，需要对象做参数；
+3. 要访问static成员或全局变量时，则不需要对象做参数；
+4. 如果做参数的对象是全局对象，则不需要对象做参数.
+5. 可以直接调用友元函数，不需要通过对象或指针
+```
+
+## 6. c++中的强制转换
+
+> dynamic_cast和static_cast，reinterpret_cast，const_cast异同
+
+```cpp
+1. const_cast
+const_cast顾名思义，用来将对象的常量属性转除，使常量可以被修改。const_cast<type>(varible)中的type必须是指针，引用，或者指向对象类型成员的指针。比如以下用法是错误的
+const int a = 3;
+const_cast<int>(a) = 4; //错误的
+const_cast<int&>(a) = 4; //正确的
+
+2.dynamic_cast
+多态类之间的类型转换用daynamic_cast。
+    1. 子类转成父类dynamic_cast和static_cast都没有问题.
+    2. 父类转成子类，dynamic_cast要求父类中有虚函数，否则编译不通过。static_cast不作此要求，编译通过。
+       在有虚函数的前提下，如果父类指针的确实指向的是子类实例，dynamic_cast转换成功，否则返回NULL；
+       static_cast对于转换前的指针是否指向实际子类实例，不作要求，都能转换成功;
+    class B
+    {
+         virtual void f(){};
+    };
+    class D : public B
+    {
+         virtual void f(){};
+    };
+    void main()
+    {
+         B* pb = new D;   // unclear but ok
+         B* pb2 = new B;
+         D* pd = dynamic_cast<D*>(pb);   // ok: pb actually points to a D
+         D* pd2 = dynamic_cast<D*>(pb2);   // pb2 points to a B not a D, now pd2 is NULL
+    }
+
+3.static_cast
+无条件转换，静态类型转换；
+　  1. 基类和子类之间转换：其中子类指针转换成父类指针是安全的;但父类指针转换成子类指针是不安全的。(基类和子类之间的动态类型转换建议用dynamic_cast)
+　　2. 基本数据类型转换。enum, struct, int, char, float等。static_cast不能进行无关类型(如非基类和子类)指针之间的转换			int*a;（double *d = static_cast<double *>(a) //无关类型指针转换，编译错误）。
+　　3. 把空指针转换成目标类型的空指针。
+　　4. 把任何类型的表达式转换成void类型。
+　　5. static_cast不能去掉类型的const、volitale属性(用const_cast)，但是可以加常属性(const int a = static_cast<const int>(a))。
+    
+4.reinterpret_cast
+    允许将任何指针类型转换为其它的指针类型；听起来很强大，但是也很不靠谱。它主要用于将一种数据类型从一种类型转换为另一种类型。它可以将一个指针转换成一个整数，也可以将一个整数转换成一个指针，在实际开发中，先把一个指针转换成一个整数，在把该整数转换成原类型的指针，还可以得到原来的指针值；特别是开辟了系统全局的内存空间，需要在多个应用程序之间使用时，需要彼此共享，传递这个内存空间的指针时，就可以将指针转换成整数值，得到以后，再将整数值转换成指针，进行对应的操作。
+```
+## 7. C++ 用operator实现隐式类型转换
+
+```cpp
+#include <iostream>
+template<typename _T>
+class A {
+public:
+	A(_T a) : data(a) {}
+	operator _T () { return data; }
+private:
+	_T data;
+};
+ 
+int main() {
+	A<int> obj(2);
+	obj = obj + 1; //obj会隐式转换成int类型
+	std::cout << obj << std::endl;
+	return 0;
+}
+
+注意： 运算符重载中(以==为例说明隐式类型转换)
+1. 首先看是否是同种支持(==)的普通基本运算符，如果是，直接进行操作；
+2. 如果满足上述条件，看是否有重载==运算符；
+3. 上述两条不满足，则看是否具有隐式类型转换；
+
+示例：
+class Integer{
+public:
+	Integer(int const& i):m_i(i){}
+    operator int&(void){
+        return m_i;
+    }
+    operator int const&(void) const{
+        return static_cast<int&>(const_cast<Integer&>(*this))
+    }
+private:
+    int m_i;
+}
+```
+
+## 8. c++ 常量引用, 常对象，和对象的常成员用法详解
+> 常引用
+```cpp
+1. 指向常量对象时，一定要使用“常量引用”，而不能是一般的引用。
+const int ci = 1024;
+const int &r1 = ci;         // 正确：引用及其对应的对象都是常量
+r1 = 42;                    // 错误：r1是对常量的引用，不能被用作修改它所绑定的对象
+int &r2 = ci;               // 错误：试图让一个非常量引用指向一个常量对象
+
+2. “常量引用”可以指向一个非常量对象，但不允许用过该引用修改非常量对象的值。
+int i = 42;
+int &r1 = i;                // 普通引用指向非常量对象 i
+const int &r2 = i;          // 常量引用也绑定非常量对象 i
+r1 = 0;                     // 正确，r1并非常量引用
+r2 = 0;                     // 错误：r2是一个常量引用
+r2 绑定非常量整数 i 是合法的行为。然而不允许通过 r2 修改 i 的值。尽管如此，i 的值仍然允许通过其他途径修改，既可以直接给 i 赋值，也可以通过像 r1 一样绑定到 i 的其他引用来修改
+    
+3. 引用的类型必须和所引用的类型严格匹配，且不能与字面值或者某个表达式的计算结果绑定在一起，但是 “常量引用” 是例外（只要被引用的类型能够转换为常量引用的类型）
+//类型严格匹配  
+const int i = 42;
+const int &r1 = i;          // i和r1指向的是同一块地址
+    
+//类型不严格匹配    
+int i = 42;
+const int &r1 = i;          // 正确：指向非常量对象 
+const int &r2 = 42;         // 正确：r2 是一个常量引用
+const int &r3 = r1 * 2;     // 正确：r3 是一个常量引用
+int &r4 = r1 * 2;           // 错误：r4 是一个普通的非常量引用
+
+double dval = 3.14;
+const int &r1 = dval;
+此处 const int &r1 = dval 编译器实际上相当于执行了下列语句：引用和原 dval 已经不是同一个地址了:
+const int temp = dval;      // 生成一个临时的整型常量
+const int &r1 = temp;       // 让 r1 绑定这个临时量
+也就是说，不允许一个普通引用与字面值或者某个表达式的计算结果，或类型不匹配的对象绑定在一起，其实就是不允许一个普通引用指向一个临时变量，只允许将“常量引用”指向临时对象。
+    
+4. 在函数参数中，使用常量引用非常重要。因为函数有可能接受临时对象，而且同时需要禁止对所引用对象的一切修改
+int test() {
+	return 1;
+}
+
+void fun(int &x) {
+    cout << x << endl;
+}
+ 
+int main()
+{
+	int m = 1;
+	fun(m);         // ok
+	fun(1);         // error
+    fun(test());    // error
+ 
+	return 0;
+}
+按下面修改后，fun()函数无论是接受字面值常量作为参数，还是将函数的返回值作为参数均可
+ int test() {
+	return 1;
+}
+ 
+void fun(const int &x) {
+    cout << x << endl;
+}
+ 
+int main()
+{
+    fun(1);         // ok
+	fun(test());    // ok
+ 
+	return 1;
+}
+```
+
+> 常对象和对象的常成员
+
+```cpp
+1. 所谓常对象是指其数据成员在他的生存周期内不会被改变，定义常对象时必须对其进行初始化，并且不能改变数据成员的数值
+2. 常对象不能调用普通的成员函数，没有对外的接口，需要专门为常对象定义常成员函数
+    a. 常成员函数在声明和实现时都要带const关键字
+    b. 常成员函数不能修改对象的数据成员，也不能访问类中没有const声明的非常成员函数
+    c. 常对象只能调用它的常成员函数，不能调用其他的普通成员函数
+   	d. const关键字可以被用于参与对重载函数的区分
+   	
+3. 类的常数据成员：在任何函数中都不能对常数据成员赋值，构造函数对常数据成员初始化，只能通过初始化列表
+```
+
+> 创建一个二维数组
+
+```cpp
+#include <iostream>
+using namespace std;
+void main()
+{
+//用new创建一个二维数组,有两种方法,是等价的
+//一:
+int (*p)[10] = new int[5][10];
+//二:
+int **p = new int* [5];
+for(int i=0;i <5;i++)
+p[i] = new int[10];
+}
+```
+
+## 9 三种智能指针(shared_ptr、weak_ptr 、 unique_ptr)
+
+> shared_ptr
+
+```cpp
+ - shared_ptr使用了引用计数，每一个shared_ptr的拷贝都指向相同的内存，每次拷贝都会触发引用计数+1，每次生命周期结束析构的时候引用计数-1，在最后一个shared_ptr析构的时候，内存才会释放。
+ struct ClassWrapper {
+
+    ClassWrapper() {
+        cout << "construct" << endl;
+        data = new int[10];
+    }
+
+    ~ClassWrapper() {
+        cout << "deconstruct" << endl;
+        if (data != nullptr) {
+            delete[] data;
+        }
+    }
+
+    void Print() {
+        cout << "print" << endl;
+    }
+
+    int* data;
+};
+
+void Func(std::shared_ptr<ClassWrapper> ptr) {
+    ptr->Print();
+}
+
+int main() {
+    auto smart_ptr = std::make_shared<ClassWrapper>();
+    auto ptr2 = smart_ptr; // 引用计数+1
+    ptr2->Print();
+    Func(smart_ptr); // 引用计数+1
+    smart_ptr->Print();
+    ClassWrapper *p = smart_ptr.get(); // 可以通过get获取裸指针
+    p->Print();
+    return 0;
+}
+
+智能指针还可以自定义删除器，在引用计数为0的时候自动调用删除器来释放对象的内存，代码如下：
+std::shared_ptr<int> ptr(new int, [](int *p){ delete p; });
+
+注意：
+    1. 不要用一个裸指针初始化多个shared_ptr，会出现double_free导致程序崩溃；
+    2. 通过shared_from_this()返回this指针，不要把this指针作为shared_ptr返回出来，因为this指针本质就是裸指针，通过this返回可能 会导致重复析构，不能把this指针交给智能指针管理。
+   class A {
+      shared_ptr<A> GetSelf() {
+        return shared_from_this();
+        // return shared_ptr<A>(this); 错误，会导致double free
+    	}  
+	};
+	3. 尽量使用make_shared，少用new。
+    4. 不要delete get()返回来的裸指针。
+    5. 是new出来的空间要自定义删除器。
+	6. 要避免循环引用，循环引用导致内存永远不会被释放，造成内存泄漏；
+    using namespace std;
+    struct A;
+    struct B;
+
+    struct A {
+        std::shared_ptr<B> bptr;
+        ~A() {
+            cout << "A delete" << endl;
+        }
+    };
+
+    struct B {
+        std::shared_ptr<A> aptr;
+        ~B() {
+            cout << "B delete" << endl;
+        }
+    };
+
+    int main() {
+        auto aaptr = std::make_shared<A>();
+        auto bbptr = std::make_shared<B>();
+        aaptr->bptr = bbptr;
+        bbptr->aptr = aaptr;
+        return 0;
+    }
+    上面代码，产生了循环引用，导致aptr和bptr的引用计数为2，离开作用域后aptr和bptr的引用计数-1，但是永远不会为0，导致指针永远不会析构，产生了内存泄漏，如何解决这种问题呢，答案是使用weak_ptr
+```
+
+> weak_ptr
+
+```cpp
+weak_ptr是用来监视shared_ptr的生命周期，它不管理shared_ptr内部的指针，它的拷贝的析构都不会影响引用计数，纯粹是作为一个旁观者监视shared_ptr中管理的资源是否存在，可以用来返回this指针和解决循环引用问题。
+    - 作用1：返回this指针，上面介绍的shared_from_this()其实就是通过weak_ptr返回的this指针，这里参考我之前写的源码分析shared_ptr实现的文章，最后附上链接
+    - 作用2：解决循环引用问题。
+    struct A;
+    struct B;
+
+    struct A {
+        std::shared_ptr<B> bptr;
+        ~A() {
+            cout << "A delete" << endl;
+        }
+        void Print() {
+            cout << "A" << endl;
+        }
+    };
+
+    struct B {
+        std::weak_ptr<A> aptr; // 这里改成weak_ptr
+        ~B() {
+            cout << "B delete" << endl;
+        }
+        void PrintA() {
+            if (!aptr.expired()) { // 监视shared_ptr的生命周期
+                auto ptr = aptr.lock();
+                ptr->Print();
+            }
+        }
+    };
+
+    int main() {
+        auto aaptr = std::make_shared<A>();
+        auto bbptr = std::make_shared<B>();
+        aaptr->bptr = bbptr;
+        bbptr->aptr = aaptr;
+        bbptr->PrintA();
+        return 0;
+    }
+    输出：
+    A
+    A delete
+    B delete
+```
+
+> unique_ptr
+
+```cpp
+std::unique_ptr是一个独占型的智能指针，它不允许其它智能指针共享其内部指针，也不允许unique_ptr的拷贝和赋值。使用方法和shared_ptr类似，区别是不可以拷贝：
+    using namespace std;
+
+    struct A {
+        ~A() {
+            cout << "A delete" << endl;
+        }
+        void Print() {
+            cout << "A" << endl;
+        }
+    };
+
+
+    int main() {
+        auto ptr = std::unique_ptr<A>(new A);
+        auto tptr = std::make_unique<A>(); // error, c++11还不行，需要c++14
+        std::unique_ptr<A> tem = ptr; // error, unique_ptr不允许移动
+        ptr->Print();
+        return 0;
+    }
+unique_ptr也可以像shared_ptr一样自定义删除器，使用方法和shared_ptr相同。
+```
+
+## 10. c++中的右值引用、移动语义和完美转发
 
 > 左值、右值
+
 ```cpp
 c++中引入了右值引用和移动语义，可以避免无谓的复制，提高程序性能
 `C++`中所有的值都必然属于左值、右值二者之一。左值是指表达式结束后依然存在的*持久化对象*，右值是指表达式结束时就不再存在的*临时对象*。所有的具名变量或者对象都是左值，而右值不具名。很难得到左值和右值的真正定义，但是有一个可以区分左值和右值的便捷方法：**看能不能对表达式取地址，如果能，则为左值，否则为右值**
@@ -266,7 +787,9 @@ c++中引入了右值引用和移动语义，可以避免无谓的复制，提�
     }
     A a = getTemp();   // a是左值  getTemp()的返回值是右值（临时变量）
 ```
+
 >左值引用、右值引用
+
 ```cpp
 c++98中的引用很常见了，就是给变量取了个别名，在c++11中，因为增加了右值引用(rvalue reference)的概念，所以c++98中的引用都称为了左值引用(lvalue reference)。
     int a = 10; 
@@ -352,7 +875,9 @@ getTemp()返回的右值本来在表达式语句结束后，其生命也就该�
     4. 已命名的右值引用，编译器会认为是个左值
     5. 编译器有返回值优化，但不要过于依赖
 ```
+
 >移动构造和移动赋值
+
 ```cpp
 回顾一下如何用c++实现一个字符串类MyString，MyString内部管理一个C语言的char *数组，这个时候一般都需要实现拷贝构造函数和拷贝赋值函数，因为默认的拷贝是浅拷贝，而指针这种资源不能共享，不然一个析构了，另一个也就完蛋了。
     #include <iostream>
@@ -575,7 +1100,9 @@ MAsgn = 0
     如果我们没有提供移动构造函数，只提供了拷贝构造函数，std::move()会失效但是不会发生错误，因为编译器找不到移动构造函数就去寻找拷贝构造函数，也这是拷贝构造函数的参数是const T&常量左值引用的原因！
     c++11中的所有容器都实现了move语义，move只是转移了资源的控制权，本质上是将左值强制转化为右值使用，以用于移动拷贝或赋值，避免对含有资源的对象发生无谓的拷贝。move对于拥有如内存、文件句柄等资源的成员的对象有效，如果是一些基本类型，如int和char[10]数组等，如果使用move，仍会发生拷贝（因为没有对应的移动构造函数），所以说move对含有资源的对象说更有意义。
 ```
+
 >universal references(通用引用)
+
 ```cpp
 当右值引用和模板结合的时候，就复杂了。T&&并不一定表示右值引用，它可能是个左值引用又可能是个右值引用。例如：
     template<typename T>
@@ -649,7 +1176,9 @@ MAsgn = 0
     }
 所以，归纳一下， 传递左值进去，就是左值引用，传递右值进去，就是右值引用。如它的名字，这种类型确实很"通用"，下面要讲的完美转发，就利用了这个特性。
 ```
+
 > 完美转发
+
 ```cpp
 所谓转发，就是通过一个函数将参数继续转交给另一个函数进行处理，原参数可能是右值，可能是左值，如果还能继续保持参数的原有特征，那么它就是完美的
     void process(int& i){
@@ -725,7 +1254,9 @@ MAsgn = 0
     }
 上面的代码测试结果表明，在universal references和std::forward的合作下，能够完美的转发这4种类型。
 ```
+
 >emplace_back减少内存拷贝和移动
+
 ```cpp
 我们之前使用vector一般都喜欢用push_back()，由上文可知容易发生无谓的拷贝，解决办法是为自己的类增加移动拷贝和赋值函数，但其实还有更简单的办法！就是使用emplace_back()替换push_back()，如下面的例子：
     #include <iostream>
@@ -774,7 +1305,9 @@ MAsgn = 0
     }
 如果T是可移动的，那么整个操作会很高效，如果不可移动，那么就和普通的交换函数是一样的，不会发生什么错误，很安全。
 ```
+
 > 总结
+
 ```cpp
 1. 有两种值类型，左值和右值。
 2. 有三种引用类型，左值引用、右值引用和通用引用。左值引用只能绑定左值，右值引用只能绑定右值，通用引用由初始化时绑定的值的类型确定。
@@ -785,523 +1318,5 @@ MAsgn = 0
 7. std::forward()和universal references通用引用共同实现完美转发。
 8. 用empalce_back()替换push_back()增加性能。
 ```
-## 5. C++中继承详解
 
->继承的权限有三种
-```cpp
-1. 私有继承：基类中的非私有成员都为派生类的私有成员
-2. 保护继承：基类中的非私有成员在派生类中的访问属性都降一级(公有变保护，保护变保护)
-3. 公有继承：基类中的非私有成员在派生类中的访问属性保持不变
-注意：基类中的私有成员，子类能继承，但是子类不能直接访问，需要使用父类提供的方法才能访问该变量。改方法是从父类继承中得到的protected、public方法来访问
-注意：派生类从基类公有继承时，派生类的成员函数可以直接访问基类的公有成员，但不能访问基类的私有成员
-    为了便于派生类的访问，可以将基类的私有成员中需要提供给派生类访问的成员定义为保护成员
-    派生类可以访问protected权限的成员但是派生类的对象不能访问基类的成员
-
-4. 访问权限
-public：类内、类的对象；派生类内、派生类对象--->>均可访问。
-protected：类内、派生类内--->>可以访问；类的对象、派生类的对象-->>不可访问。
-private：只有类内部-->>可以访问；类的对象、派生类、派生类的对象，统统的-->>不可访问(可以使用父类提供的方法才能访问该变量)。
-```
->继承的特性
-```cpp
-class的缺省的继承方式是私有继承
-struct的缺省继承方式是公有继承
-子类拥有父类的所有属性和行为
-子类就是一种特殊的父类
-子类对象可以当作父类对象使用
-1.子类对象可以给父类对象赋值
-2.父类对象不能赋值给子类对象
-3.父类对象的指针/引用可以指向子类对象
-4.子类的指针/引用不能指向父类对象(强制类型转换)
-5.友元关系：不能被继承，因为友元函数不是类的成员；
-6.静态成员变量： 可以被继承，且是同一个变量；
-```
-
->同名隐藏
-```cpp
-在基类和派生类中，具有相同名称的成员（成员函数||成员变量），如果用派生类对象去访问继承体系中的同名成员，只能访问到自己的，基类的成员无法访问；
-只能通过加基类作用域的方式去访问相同成名的基类成员；
-且优先给派生类中自己的成员变量和成员函数赋值；
-```
-
->子类构造函数和父类构造之间的关系
-```cpp
-在子类对象构造时，需要调用父类构造函数对其继承得来的成员进行初始化(父类先构造)
-在子类对象析构时，需要调用父类析构函数对其继承得来的成员进行清理(子类先析构)
-```
-
->c++创建一个子类对象时会调用父类的构造函数，那么会创建父类对象吗？
-
-```cpp
-不会创建另外一个父类对象，只是初始化子类中属于父类的成员。创建一个对象的时候，发生了两件事情，一是分配对象所需的内存，二是调用构造函数进行初始化。子类对象包含从父类对象继承过来的成员，实现上来说，一般也是子类的内存区域中有一部分就是父类的内存区域。调用父类构造函数的时候，这块父类对象的内存区域就被初始化了。为了避免未初始化的问题，语法强制子类调用父类构造函数。
-    
-构造方法用来初始化类的对象，与父类的其它成员不同，它不能被子类继承（子类可以继承父类所有的成员变量和成员方法，但不继承父类的构造方法）。因此，在创建子类对象时，为了初始化从父类继承来的数据成员，系统需要调用其父类的构造方法。
-如果没有显式的构造函数，编译器会给一个默认的构造函数，并且该默认的构造函数仅仅在没有显式地声明构造函数情况下创建。
-    1. 如果子类没有定义构造方法，则调用父类的无参数的构造方法。
-    2. 如果子类定义了构造方法，不论是无参数还是带参数，在创建子类的对象的时候,首先执行父类无参数的构造方法，然后执行自己的构造方法。
-    3. 在创建子类对象时候，如果子类的构造函数没有显示调用父类的构造函数，则会调用父类的默认无参构造函数。
-    4. 在创建子类对象时候，如果子类的构造函数没有显示调用父类的构造函数且父类自己提供了无参构造函数，则会调用父类自己的无参构造函数。
-    5. 在创建子类对象时候，如果子类的构造函数没有显示调用父类的构造函数且父类只定义了自己的有参构造函数，则会出错（如果父类只有有参数的构造方法，则子类必须显示调用此带参构造方法）。
-    6. 如果子类调用父类带参数的构造方法，需要用初始化父类成员对象的方式，比如：
-    class animal
-    animal(int height, int weight)
-    class fish:public animal
-    fish():animal(400,300)
-```
-
-> 虚继承
-
-```cpp
-对于菱形继承
-D继承于BC,BC继承于A;
-    类D中的成员变量 int a，如果访问a，就会出现二义性问题，到底是B中的a，还是C中的A，并且会造成数据冗余问题。
-其中，对于二义性问题，我们加访问限定即可。例如 B::a 或者C::a；但对于数据冗余问题却没有办法解决。
-于是C++中就引入了虚拟继承
-        
-#include<iostream>  
-using namespace std;  
-class A  //大小为4  
-{  
-    public:  
-    int a;  
-};  
-class B :virtual public A  //大小为12，变量a,b共8字节，虚基类表指针4  
-{  
-    public:  
-    int b;  
-};  
-
-class C :virtual public A //与B一样12 
-{  
-    public:  
-    int c;  
-};  
-
-class D :public B, public C //24,变量a,b,c,d共16，B的虚基类指针4，C的虚基类指针  
-{  
-    public:  
-    int d;  
-};  
-
-int main()  
-{  
-    A a;  
-    B b;  
-    C c;  
-    D d;  
-    cout << sizeof(a) << endl;  
-    cout << sizeof(b) << endl;  
-    cout << sizeof(c) << endl;  
-    cout << sizeof(d) << endl;  
-    return 0;  
-}
-
-虚拟继承和普通继承的区别
-    如果一个类中有虚函数，那么就会有一个虚表，有一个指针指向这个虚表;
-    对于普通继承，继承的虚函数和本有的虚函数共用同一个虚表;
-    但对于虚拟继承来说，不管是基类还是派生类都需要有一个指针来维护自己的虚表，并且还要有一个指针指向虚基表，其中存放偏移量;
-```
-
-## 6. c++中的友元函数
-```cpp
-类的友元函数是定义在类外部，但有权访问类的所有私有（private）成员和保护（protected）成员。尽管友元函数的原型有在类的定义中出现过，但是友元函数并不是成员函数。
-友元可以是一个函数，该函数被称为友元函数；友元也可以是一个类，该类被称为友元类，在这种情况下，整个类及其所有成员都是友元。
-如果要声明函数为一个类的友元，需要在类定义中该函数原型前使用关键字 friend，如下所示：
-
-//友元类和友元函数的使用
-#include <iostream>
-using namespace std;
-class Box
-{
-    double width;
-public:
-    friend void printWidth(Box box);
-    friend class BigBox;
-    void setWidth(double wid);
-};
-class BigBox
-{
-public :
-    void Print(int width, Box &box){
-        // BigBox是Box的友元类，它可以直接访问Box类的任何成员
-        box.setWidth(width);
-        cout << "Width of box : " << box.width << endl;
-    }
-};
-// 成员函数定义
-void Box::setWidth(double wid){
-    width = wid;
-}
-// 请注意：printWidth() 不是任何类的成员函数
-void printWidth(Box box) {
-    /* 因为 printWidth() 是 Box 的友元，它可以直接访问该类的任何成员 */
-    cout << "Width of box : " << box.width << endl;
-}
-
-// 程序的主函数
-int main()
-{
-    Box box;
-    BigBox big;
-    // 使用成员函数设置宽度
-    box.setWidth(10.0);
-    // 使用友元函数输出宽度
-    printWidth(box);
-    // 使用友元类中的方法设置宽度
-    big.Print(20, box);
-    getchar();
-    return 0;
-}
-
-注意：
-1. 因为友元函数没有this指针，则参数要有三种情况： 
-2. 要访问非static成员时，需要对象做参数；
-3. 要访问static成员或全局变量时，则不需要对象做参数；
-4. 如果做参数的对象是全局对象，则不需要对象做参数.
-5. 可以直接调用友元函数，不需要通过对象或指针
-```
-
-## 7. c++中的强制转换
-
-> dynamic_cast和static_cast，reinterpret_cast，const_cast异同
-
-```cpp
-1. const_cast
-const_cast顾名思义，用来将对象的常量属性转除，使常量可以被修改。const_cast<type>(varible)中的type必须是指针，引用，或者指向对象类型成员的指针。比如以下用法是错误的
-const int a = 3;
-const_cast<int>(a) = 4; //错误的
-const_cast<int&>(a) = 4; //正确的
-
-2.dynamic_cast
-多态类之间的类型转换用daynamic_cast。
-    1. 子类转成父类dynamic_cast和static_cast都没有问题.
-    2. 父类转成子类，dynamic_cast要求父类中有虚函数，否则编译不通过。static_cast不作此要求，编译通过。
-       在有虚函数的前提下，如果父类指针的确实指向的是子类实例，dynamic_cast转换成功，否则返回NULL；
-       static_cast对于转换前的指针是否指向实际子类实例，不作要求，都能转换成功;
-    class B
-    {
-         virtual void f(){};
-    };
-    class D : public B
-    {
-         virtual void f(){};
-    };
-    void main()
-    {
-         B* pb = new D;   // unclear but ok
-         B* pb2 = new B;
-         D* pd = dynamic_cast<D*>(pb);   // ok: pb actually points to a D
-         D* pd2 = dynamic_cast<D*>(pb2);   // pb2 points to a B not a D, now pd2 is NULL
-    }
-
-3.static_cast
-无条件转换，静态类型转换；
-　  1. 基类和子类之间转换：其中子类指针转换成父类指针是安全的;但父类指针转换成子类指针是不安全的。(基类和子类之间的动态类型转换建议用dynamic_cast)
-　　2. 基本数据类型转换。enum, struct, int, char, float等。static_cast不能进行无关类型(如非基类和子类)指针之间的转换			int*a;（double *d = static_cast<double *>(a) //无关类型指针转换，编译错误）。
-　　3. 把空指针转换成目标类型的空指针。
-　　4. 把任何类型的表达式转换成void类型。
-　　5. static_cast不能去掉类型的const、volitale属性(用const_cast)，但是可以加常属性(const int a = static_cast<const int>(a))。
-    
-4.reinterpret_cast
-    允许将任何指针类型转换为其它的指针类型；听起来很强大，但是也很不靠谱。它主要用于将一种数据类型从一种类型转换为另一种类型。它可以将一个指针转换成一个整数，也可以将一个整数转换成一个指针，在实际开发中，先把一个指针转换成一个整数，在把该整数转换成原类型的指针，还可以得到原来的指针值；特别是开辟了系统全局的内存空间，需要在多个应用程序之间使用时，需要彼此共享，传递这个内存空间的指针时，就可以将指针转换成整数值，得到以后，再将整数值转换成指针，进行对应的操作。
-```
-## 8. C++ 用operator实现隐式类型转换
-
-```cpp
-#include <iostream>
-template<typename _T>
-class A {
-public:
-	A(_T a) : data(a) {}
-	operator _T () { return data; }
-private:
-	_T data;
-};
- 
-int main() {
-	A<int> obj(2);
-	obj = obj + 1; //obj会隐式转换成int类型
-	std::cout << obj << std::endl;
-	return 0;
-}
-
-注意： 运算符重载中(以==为例说明隐式类型转换)
-1. 首先看是否是同种支持(==)的普通基本运算符，如果是，直接进行操作；
-2. 如果满足上述条件，看是否有重载==运算符；
-3. 上述两条不满足，则看是否具有隐式类型转换；
-
-示例：
-class Integer{
-public:
-	Integer(int const& i):m_i(i){}
-    operator int&(void){
-        return m_i;
-    }
-    operator int const&(void) const{
-        return static_cast<int&>(const_cast<Integer&>(*this))
-    }
-private:
-    int m_i;
-}
-```
-
-## 9. c++ 常量引用, 常对象，和对象的常成员用法详解
-> 常引用
-```cpp
-1. 指向常量对象时，一定要使用“常量引用”，而不能是一般的引用。
-const int ci = 1024;
-const int &r1 = ci;         // 正确：引用及其对应的对象都是常量
-r1 = 42;                    // 错误：r1是对常量的引用，不能被用作修改它所绑定的对象
-int &r2 = ci;               // 错误：试图让一个非常量引用指向一个常量对象
-
-2. “常量引用”可以指向一个非常量对象，但不允许用过该引用修改非常量对象的值。
-int i = 42;
-int &r1 = i;                // 普通引用指向非常量对象 i
-const int &r2 = i;          // 常量引用也绑定非常量对象 i
-r1 = 0;                     // 正确，r1并非常量引用
-r2 = 0;                     // 错误：r2是一个常量引用
-r2 绑定非常量整数 i 是合法的行为。然而不允许通过 r2 修改 i 的值。尽管如此，i 的值仍然允许通过其他途径修改，既可以直接给 i 赋值，也可以通过像 r1 一样绑定到 i 的其他引用来修改
-    
-3. 引用的类型必须和所引用的类型严格匹配，且不能与字面值或者某个表达式的计算结果绑定在一起，但是 “常量引用” 是例外（只要被引用的类型能够转换为常量引用的类型）
-//类型严格匹配  
-const int i = 42;
-const int &r1 = i;          // i和r1指向的是同一块地址
-    
-//类型不严格匹配    
-int i = 42;
-const int &r1 = i;          // 正确：指向非常量对象 
-const int &r2 = 42;         // 正确：r2 是一个常量引用
-const int &r3 = r1 * 2;     // 正确：r3 是一个常量引用
-int &r4 = r1 * 2;           // 错误：r4 是一个普通的非常量引用
-
-double dval = 3.14;
-const int &r1 = dval;
-此处 const int &r1 = dval 编译器实际上相当于执行了下列语句：引用和原 dval 已经不是同一个地址了:
-const int temp = dval;      // 生成一个临时的整型常量
-const int &r1 = temp;       // 让 r1 绑定这个临时量
-也就是说，不允许一个普通引用与字面值或者某个表达式的计算结果，或类型不匹配的对象绑定在一起，其实就是不允许一个普通引用指向一个临时变量，只允许将“常量引用”指向临时对象。
-    
-4. 在函数参数中，使用常量引用非常重要。因为函数有可能接受临时对象，而且同时需要禁止对所引用对象的一切修改
-int test() {
-	return 1;
-}
-
-void fun(int &x) {
-    cout << x << endl;
-}
- 
-int main()
-{
-	int m = 1;
-	fun(m);         // ok
-	fun(1);         // error
-    fun(test());    // error
- 
-	return 0;
-}
-按下面修改后，fun()函数无论是接受字面值常量作为参数，还是将函数的返回值作为参数均可
- int test() {
-	return 1;
-}
- 
-void fun(const int &x) {
-    cout << x << endl;
-}
- 
-int main()
-{
-    fun(1);         // ok
-	fun(test());    // ok
- 
-	return 1;
-}
-```
-
-> 常对象和对象的常成员
-
-```cpp
-1. 所谓常对象是指其数据成员在他的生存周期内不会被改变，定义常对象时必须对其进行初始化，并且不能改变数据成员的数值
-2. 常对象不能调用普通的成员函数，没有对外的接口，需要专门为常对象定义常成员函数
-    a. 常成员函数在声明和实现时都要带const关键字
-    b. 常成员函数不能修改对象的数据成员，也不能访问类中没有const声明的非常成员函数
-    c. 常对象只能调用它的常成员函数，不能调用其他的普通成员函数
-   	d. const关键字可以被用于参与对重载函数的区分
-   	
-3. 类的常数据成员：在任何函数中都不能对常数据成员赋值，构造函数对常数据成员初始化，只能通过初始化列表
-```
-
-> 创建一个二维数组
-
-```cpp
-#include <iostream>
-using namespace std;
-void main()
-{
-//用new创建一个二维数组,有两种方法,是等价的
-//一:
-int (*p)[10] = new int[5][10];
-//二:
-int **p = new int* [5];
-for(int i=0;i <5;i++)
-p[i] = new int[10];
-}
-```
-
-## 10 三种智能指针(shared_ptr、weak_ptr 、 unique_ptr)
-
-> shared_ptr
-
-```cpp
- - shared_ptr使用了引用计数，每一个shared_ptr的拷贝都指向相同的内存，每次拷贝都会触发引用计数+1，每次生命周期结束析构的时候引用计数-1，在最后一个shared_ptr析构的时候，内存才会释放。
- struct ClassWrapper {
-
-    ClassWrapper() {
-        cout << "construct" << endl;
-        data = new int[10];
-    }
-
-    ~ClassWrapper() {
-        cout << "deconstruct" << endl;
-        if (data != nullptr) {
-            delete[] data;
-        }
-    }
-
-    void Print() {
-        cout << "print" << endl;
-    }
-
-    int* data;
-};
-
-void Func(std::shared_ptr<ClassWrapper> ptr) {
-    ptr->Print();
-}
-
-int main() {
-    auto smart_ptr = std::make_shared<ClassWrapper>();
-    auto ptr2 = smart_ptr; // 引用计数+1
-    ptr2->Print();
-    Func(smart_ptr); // 引用计数+1
-    smart_ptr->Print();
-    ClassWrapper *p = smart_ptr.get(); // 可以通过get获取裸指针
-    p->Print();
-    return 0;
-}
-
-智能指针还可以自定义删除器，在引用计数为0的时候自动调用删除器来释放对象的内存，代码如下：
-std::shared_ptr<int> ptr(new int, [](int *p){ delete p; });
-
-注意：
-    1. 不要用一个裸指针初始化多个shared_ptr，会出现double_free导致程序崩溃；
-    2. 通过shared_from_this()返回this指针，不要把this指针作为shared_ptr返回出来，因为this指针本质就是裸指针，通过this返回可能 会导致重复析构，不能把this指针交给智能指针管理。
-   class A {
-      shared_ptr<A> GetSelf() {
-        return shared_from_this();
-        // return shared_ptr<A>(this); 错误，会导致double free
-    	}  
-	};
-	3. 尽量使用make_shared，少用new。
-    4. 不要delete get()返回来的裸指针。
-    5. 是new出来的空间要自定义删除器。
-	6. 要避免循环引用，循环引用导致内存永远不会被释放，造成内存泄漏；
-    using namespace std;
-    struct A;
-    struct B;
-
-    struct A {
-        std::shared_ptr<B> bptr;
-        ~A() {
-            cout << "A delete" << endl;
-        }
-    };
-
-    struct B {
-        std::shared_ptr<A> aptr;
-        ~B() {
-            cout << "B delete" << endl;
-        }
-    };
-
-    int main() {
-        auto aaptr = std::make_shared<A>();
-        auto bbptr = std::make_shared<B>();
-        aaptr->bptr = bbptr;
-        bbptr->aptr = aaptr;
-        return 0;
-    }
-    上面代码，产生了循环引用，导致aptr和bptr的引用计数为2，离开作用域后aptr和bptr的引用计数-1，但是永远不会为0，导致指针永远不会析构，产生了内存泄漏，如何解决这种问题呢，答案是使用weak_ptr
-```
-
-> weak_ptr
-
-```cpp
-weak_ptr是用来监视shared_ptr的生命周期，它不管理shared_ptr内部的指针，它的拷贝的析构都不会影响引用计数，纯粹是作为一个旁观者监视shared_ptr中管理的资源是否存在，可以用来返回this指针和解决循环引用问题。
-    - 作用1：返回this指针，上面介绍的shared_from_this()其实就是通过weak_ptr返回的this指针，这里参考我之前写的源码分析shared_ptr实现的文章，最后附上链接
-    - 作用2：解决循环引用问题。
-    struct A;
-    struct B;
-
-    struct A {
-        std::shared_ptr<B> bptr;
-        ~A() {
-            cout << "A delete" << endl;
-        }
-        void Print() {
-            cout << "A" << endl;
-        }
-    };
-
-    struct B {
-        std::weak_ptr<A> aptr; // 这里改成weak_ptr
-        ~B() {
-            cout << "B delete" << endl;
-        }
-        void PrintA() {
-            if (!aptr.expired()) { // 监视shared_ptr的生命周期
-                auto ptr = aptr.lock();
-                ptr->Print();
-            }
-        }
-    };
-
-    int main() {
-        auto aaptr = std::make_shared<A>();
-        auto bbptr = std::make_shared<B>();
-        aaptr->bptr = bbptr;
-        bbptr->aptr = aaptr;
-        bbptr->PrintA();
-        return 0;
-    }
-    输出：
-    A
-    A delete
-    B delete
-```
-
-> unique_ptr
-
-```cpp
-std::unique_ptr是一个独占型的智能指针，它不允许其它智能指针共享其内部指针，也不允许unique_ptr的拷贝和赋值。使用方法和shared_ptr类似，区别是不可以拷贝：
-    using namespace std;
-
-    struct A {
-        ~A() {
-            cout << "A delete" << endl;
-        }
-        void Print() {
-            cout << "A" << endl;
-        }
-    };
-
-
-    int main() {
-        auto ptr = std::unique_ptr<A>(new A);
-        auto tptr = std::make_unique<A>(); // error, c++11还不行，需要c++14
-        std::unique_ptr<A> tem = ptr; // error, unique_ptr不允许移动
-        ptr->Print();
-        return 0;
-    }
-unique_ptr也可以像shared_ptr一样自定义删除器，使用方法和shared_ptr相同。
-```
-
+## 
