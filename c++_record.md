@@ -765,7 +765,7 @@ std::unique_ptr是一个独占型的智能指针，它不允许其它智能指�
 unique_ptr也可以像shared_ptr一样自定义删除器，使用方法和shared_ptr相同。
 ```
 
-## 10. c++中的右值引用、移动语义和完美转发
+## 10.  c++中的右值引用、移动语义和完美转发
 
 > 左值、右值
 
@@ -1319,4 +1319,95 @@ MAsgn = 0
 8. 用empalce_back()替换push_back()增加性能。
 ```
 
-## 
+## 11. 多模板参数
+```cpp
+C++可变参数模板，是指能够使用任意数量参数的函数或类模板，能够很有效的提升灵活性。
+1. 可变类模板
+对于可变类模板，基本示例如下：
+template<typename... Arguments>
+class classname;
+由上式可知，其特殊性在于 ... 的使用，可变参数模板，通过使用 ... 来帮助定义，其中，... 左侧为参数包（parameter pack ），右侧将参数包展开成多个单独的参数。
+
+对于两边的空白可以任意分布，例如：
+template<typename ...Arguments>
+class classname;
+template<typename ... Arguments>
+class classname;
+
+上面的类 classname 可以接收任意数量的参数来进行实例化，例如：
+classname<> c1();
+classname<float, int> c2();
+classname<float, std::string, std::vector<int>> c3();
+
+当然，还可以指定必须填充固定数量的参数，例如：
+template<typename first, typename... Arguments>
+class classname2;
+// classname2<> c4(); 这是错误的用法！参数必须大于等于 1
+classname2<float> c4();
+
+2. 可变参数的函数模板
+可变参数的函数模板基本示例如下：
+template<typename... Params>
+void functionname(Params... params);
+ 	
+当然，还可以使用引用类型：
+template<typename... Params>
+void functionname(Params *... params);
+
+template<typename... Params>
+void functionname(Params &... params);
+
+template<typename... Params>
+void functionname(Params &&... params);
+
+还可以使用不变类型 const 来修饰：
+template<typename... Params>
+void functionname(const Params &... params);
+
+除此之外，还可以使用和可变参数的类模板用法一样，指定固定数量的参数：
+template<typename First, typename... Params>
+void functionname(const First &first, const Params... params)
+
+3. 测量可变参数数量
+    使用 sizeof 来完成，当然，该方法和之前测量字节大小的 sizeof 不是同一个用法，这里的 sizeof 是用来测量提供了多少个参数，示例如下：
+template<typename... Params>
+void tfunc(Params... params) {
+    std::cout << sizeof...(params) << std::endl;
+}
+
+int main() {
+    tfunc();        // >: 0
+    tfunc(1);       // >: 1
+    tfunc(1, 2);    // >: 2
+    tfunc(1, 2, "Hello~YouLi~");    // >: 3
+}
+
+4.示例程序
+下面程序演示了如何使用 可变参数模板 来对函数进行重写定义并使用。
+    #include <iostream>
+    #include <string>
+    #include <vector>
+    using namespace std;
+    void print() {
+        cout << endl;
+    }
+
+    template<typename T>
+    void print(const T &t) {
+        cout << t << endl;
+    }
+
+    template<typename First, typename... Rest>
+    void print(const First &first, const Rest &...rest) {
+        cout << first << ", ";
+        print(rest...); // 将会根据语法来递归调用
+    }
+
+    int main() {
+        print();    // >:
+        print(1); // >: 1
+        print(10, 20); // >: 10, 20
+        print(10, 20, "Alice", 3.14, "Bob"); // >: 10, 20, Alice, 3.14, Bob
+    }
+
+```
