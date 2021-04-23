@@ -1647,3 +1647,114 @@ decltype关键字和auto相互对应的，它们经常在一些场所配合使�
     静态函数不能被其它文件所用； 其它文件中可以定义相同名字的函数，不会发生冲突； 
 ```
 
+## 14. c++ atomic
+
+```cpp
+ std::atomic 扩展实现 std::atomic_char, std::atomic_int, std::atomic_uint 等是stl中的默认实现
+这个类型用于对数据进行原子操作，在操作的过程中可以指定内存规则。 主要的函数如下：
+    atomic_store | 保存非原子数据到原子数据结构 |
+    atomic_load | 读取原子结构中的数据 |
+    atomic_exchange | 保存非原子数据到原子数据结构，返回原来保存的数据 |
+    atomic_fetch_add | 对原子结构中的数据做加操作 |
+    atomic_fetch_sub/atomic_fetch_sub_explicit | 对原子结构中的数据做减操作 |
+    atomic_fetch_and | 对原子结构中的数据逻辑与 |
+    atomic_fetch_or | 对原子结构中的数据逻辑或 |
+    atomic_fetch_xor | 对原子结构中的数据逻辑异或
+刚才提到了在原子操作时候的内存操作规则，内存操作规则主要是 std::memory_order，这是个枚举类型，里面包含着N多规则
+    memory_order_relaxed | 不保证顺序 |
+    memory_order_consume | 类比生产者-消费者模型中的消费者读取动作（仅是读取，无计数器），保证该操作先于依赖于当前读取的数据（比如后面用到了这次读取的数据）不会被提前，但不保证其他读取操 作的顺序。仅对大多编译环境的多线程程序的编译优化过程有影响。 |
+    memory_order_acquire | 类比生产者-消费者模型中的消费者读取动作（仅是读取，无计数器），保证在这个操作之后的所有操作不会被提前，同样对大多编译环境的多线程程序的编译优化过程有影响。 |
+    memory_order_release | 类比生产者-消费者模型中的生产者创建动作（仅操作一个数据），保证这之前的操作不会被延后。 |
+    memory_order_acq_rel | 同时包含memory_order_acquire和memory_order_release标记 |
+    memory_order_seq_cst | 全部存取都按顺序执行，在多核系统上容易成为性能瓶颈 |
+
+    在前面的原子操作的函数中，默认规则都是std::memory_order_seq_cst
+    此外，atomic还有一些标记类型和测试操作，比较类似操作系统里的原子操作
+    std::atomic_flag : 标记类型
+	atomic_flag_test_and_set : 尝试设置为占用（原子操作）
+	atomic_flag_clear : 释放（原子操作）
+        
+//example:
+atomic_flag;
+std::atomic_flag 是原子布尔类型。不同于所有 std::atomic 的特化，它保证是免锁的;
+atomic_flag支持test_and_set(),可以用于实现自旋锁;
+
+        近搞线程池并发过程中突然想起来用 原子类型 来替换一些mutex, rwlock, cond这些东西;
+比如一个reactor 的epoll+线程池[ 例如4个 ], 在发送数据时为了保证tcp socket的数据顺序,
+必须加锁处理 [ 这种模型不容易控制, 实际工程中别用, 对于 socket 还是有一个线程来处理最简单也避免竞争问题].
+然后我发现了个好东西;
+下面的测试代码用 atomic_flag 来替换mutex;
+一共没几行代码, 但基本说明了问题.
+如果你做并发send(socket,... )  看懂了下面的代码, 也就知道该怎么做了
+
+using namespace std;
+#include <atomic>
+atomic_flag lk  = ATOMIC_FLAG_INIT; //初始化,一开始是false
+int g = 0; //全局变量, ++用的
+unsigned int  __stdcall th_func(void *arg){
+    bool ret = 0;
+    int c = 0;
+    while(1){
+        /*
+            test_and_set 的作用:  原子的设置为 true.
+            只有当你设置成功 为 true时 ,才返回 false ,
+            意思是只有当 lk 为 false 时, 你才能设置成功,
+            否则返回之前的值 : true;
+                  
+        */
+ 
+        //原子的设置 true, 50个线程只有一个线程能设置为true,返回false,其他都返回true
+        /* 
+             可设置 std::memery_order_relaxed
+             不需要保证内存顺序, 这里只要保证 原子性就ok , 因此可随意他的内存顺序.
+            
+        */
+        ret = lk.test_and_set();  //就这一行代码 ,看懂了就全懂了
+ 
+        if(!ret){  
+// 50个线程中只有唯一一个线程在原子的设置成功后进入
+//这里相当于进入 mutex了
+ 
+            ++g;
+            ++c;
+// 把lk原子的设置为 false , 相当于 unlock
+            lk.clear();  
+            if(c == 100000)  
+                break;
+        }
+ 
+    }
+ 
+    return 0;
+}
+ 
+ 
+int main(int argc, char* argv[])
+{
+ 
+    static const int n = 50;
+    HANDLE * arr = new HANDLE[n];
+ 
+// 起线程
+    for(int i = 0; i <  n; ++i){
+        arr[i] = (HANDLE)_beginthreadex(0,0,th_func,0,0,0);
+    }
+ 
+    WaitForMultipleObjects(n,arr,TRUE,INFINITE);
+    cout << "main done :" << g << endl;
+    return 0;
+}
+
+接下来的问题就容易解决了,
+在线程池中:
+
+    ret = lk.test_and_set();
+    if(!ret){
+        send / write
+    }
+    else{
+        仍回队列 / 某个容器里
+        
+    }
+```
+
