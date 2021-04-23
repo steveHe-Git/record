@@ -209,7 +209,83 @@ return 0;
   	}
   };
   ```
-  4. 补充
+  4. 可变参数模板
+  ```cpp
+      typename...：声明一个可变参数模板形参
+    sizeof...：获取参数包内参数的数量
+      Pattern...：以某一模式展开参数包
+       
+      //example
+          
+      // 递归终点
+      void print() {}
+  
+      // 分解出一个val + 剩下的所有val
+      // 相当于：void print(const T &val, const Types1 &Args1, const Types2 &Args2, const Types3 &Args3, ...)
+      template <typename T, typename... Types>
+      void print(const T &val, const Types &... Args)
+      {
+          // 每次打印一个val
+          cout << val << endl;
+          //打印参数的个数
+          cout << sizeof...(Args) << endl;
+  
+          // 相当于：print(Args1, Args2, Args3, ...);
+          // 递归地继续分解...
+          print(Args...);
+      }
+  
+  
+      int main()
+      {
+          print(1, 2., '3', "4");
+      } 
+  
+  
+  	//稻草人函数
+  	//如何实现：判定类型A是否能够基于隐式类型转换转为B类型？
+  	template <typename A, typename B>
+      class IsCastable
+      {
+      private:
+  
+          // 定义两个内存大小不一样的类型，作为“布尔值”
+          typedef char __True;
+          typedef struct { char _[2]; } __False;
+  
+  
+          // 稻草人函数
+          static A __A();
+  
+  
+          // 只要A到B的隐式类型转换可用，重载确定的结果就是此函数...
+          static __True __Test(B);
+  
+  
+          // ...否则，重载确定的结果才是此函数(“...”参数的重载确定优先级低于其他一切可行的重载版本)
+          static __False __Test(...);
+  
+  
+      public:
+  
+          // 根据重载确定的结果，就能够判定出隐式类型转换是否能够发生
+          static constexpr bool Value = sizeof(__Test(__A())) == sizeof(__True);
+      };
+  
+  	首先，我们声明了两个大小不同的类型，作为假想的“布尔值”。也许你会有疑问，这里为什么不使用int或double之类的类型作为False？这是由于C语言并未规定“int、double必须比char大”，故为了“强行满足标准”（你完全可以认为这是某种“教条主义或形式主义”），这里采用了“两个char一定比一个char大一倍”这一简单道理，定义了False。
+  	然后，我们声明了一个所谓的“稻草人函数”，这个看似毫无意义的函数甚至没有函数体（因为并不需要，且接下来的两个函数也没有函数体，与此函数同理）。这个函数唯一的目的就是“获得”一个A类型的值“给sizeof看”。由于sizeof的不求值特性，此函数也就不需要（我们也无法提供）函数体了。那么，为什么不直接使用形如“T()”这样的写法，而需要声明一个“稻草人函数”呢？我想，不用我说你就已经明白原因了：这是因为并不是所有的T都具有默认构造函数，而如果T没有默认构造函数，那么“T()”就是错误的。
+  接下来是最关键的部分，我们声明了一对重载函数，这两个函数的区别有二：
+      返回值不同，一个是sizeof的结果为1的值，而另一个是sizeof的结果为2的值
+      形参不同，一个是B，一个是“...”
+  也就是说，如果我们给这一对重载函数传入一个A类型的值时，由于“...”参数的重载确定优先级低于其他一切可行的重载版本，只要A到B的隐式类型转换能够发生，重载确定的结果就一定是调用第一个版本的函数，返回值为__True；否则，只有当A到B的隐式类型转换真的不可行时，编译器才会“被迫”选择那个编译器“最不喜欢的版本”，从而使得返回值为__False。返回值的不同，就能够直接体现在sizeof的结果不同上。所以，只需要判定sizeof(__Test(__A()))是多少，就能够达到我们最终的目的了。下面请看使用示例：
+      int main()
+      {
+          cout << IsCastable<int, double>::Value << endl;  // true
+          cout << IsCastable<int, string>::Value << endl;  // false
+      }
+  ```
+  
+  5. 补充
   + 针对部分类型参数取特定类型进行特化
     编译器优先选择特化程度最高的版本
   + 针对类型参数之间的某种关联性进行特化
@@ -455,6 +531,23 @@ void disp(vector<T>::const& vec) {
         cout << *it << ' ';
     cout <<endl;   
 }
+
+//example:
+struct A { typedef int TypeOrValue; };
+struct B { static constexpr int TypeOrValue = 0; };
+ 
+template <typename T>
+struct C
+{
+    T::TypeOrValue;  // 这是什么？
+};
+
+上例中，如果T是A，则T::TypeOrValue是一个类型；而如果T是B，则T::TypeOrValue是一个数。我们称这种含有模板参数的，无法立即确定语义的名称为“依赖型名称”。所谓“依赖”，意即此名称的确切语义依赖于模板参数的实际类型。
+
+对于依赖型名称，C++规定：默认情况下，编译器应认为依赖型名称不是一个类型；如果需要编译器将依赖型名称视为一个类型，则需要前置typename关键词。请看以下示例以进行辨析
+    
+T::TypeOrValue * N;           // T::TypeOrValue是一个值，这是一个乘法表达式
+typename T::TypeOrValue * N;  // typename T::TypeOrValue是一个类型，声明了一个这样类型的指针
   ```
 
 ### 7 STL各种容器(vector, list, map, deque, stack)
