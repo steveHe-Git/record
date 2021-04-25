@@ -28,7 +28,11 @@ private:
 public:
     Singleton(/* args */){}
     ~Singleton(){}
-
+    /*
+    * std::atomic_thread_fence(std::memory_order_acquire); 
+    * std::atomic_thread_fence(std::memory_order_release);
+    * 这两句话可以保证他们之间的语句不会发生乱序执行。
+    */
     static T& Instance() {
         std::atomic_thread_fence(std::memory_order_acquire);
         if (!m_instance) {
