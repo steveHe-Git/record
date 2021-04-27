@@ -71,9 +71,6 @@ private:
     }
 
     std::map<std::string, Any>m_map;
-public:
-    IocAny(/* args */){}
-    ~IocAny(){}
 
     template<typename Base, typename Depend>
     typename std::enable_if<!std::is_same<Depend, void>::value>::type RegisterType(string key) {
@@ -112,6 +109,18 @@ public:
 
         return f();
     }
+
+public:
+    IocAny(/* args */){}
+    ~IocAny(){}
+
+    template<typename U, typename K>
+    std::shared_ptr<U> getRegisterShared(string key) {
+        if (m_map.find(key) == m_map.end()) {
+            RegisterType<U, K>(key);
+        }
+        return ResolveShared<U>(key);
+    }
 };
 
 int main () {
@@ -124,12 +133,17 @@ int main () {
     // DeviceB->fun_print();
     // DeviceC->fun_print();
 
-    Ioc.RegisterType<B>("B");
-    Ioc.RegisterType<C>("C");
-    auto deviceA = Ioc.ResolveShared<B>("B");
-    auto deviceB = Ioc.ResolveShared<C>("C");
-    deviceA->fun_print();
-    deviceB->fun_print();
+    auto DeviceB = Ioc.getRegisterShared<D, B>("B");
+    auto DeviceC = Ioc.getRegisterShared<D, C>("C");
+    DeviceB->fun_print();
+    DeviceC->fun_print();
+
+    // Ioc.RegisterType<B>("B");
+    // Ioc.RegisterType<C>("C");
+    // auto deviceA = Ioc.ResolveShared<B>("B");
+    // auto deviceB = Ioc.ResolveShared<C>("C");
+    // deviceA->fun_print();
+    // deviceB->fun_print();
 
     return 0;
 }
