@@ -10,7 +10,8 @@
  */
 
 #include "Singleton.hpp"
-#include "Any.hpp"
+//#include "Any.hpp"
+#include "AnyRewrite.hpp"
 #include <iostream>
 #include <string>
 #include <functional>
@@ -77,6 +78,7 @@ public:
     template<typename Base, typename Depend>
     typename std::enable_if<!std::is_same<Depend, void>::value>::type RegisterType(string key) {
         std::function<Base*()> func = []{
+            cout << "first" <<endl;
             return new Base(new Depend());
         };
         std::cout << "Base is not father of Depend" << std::endl;
