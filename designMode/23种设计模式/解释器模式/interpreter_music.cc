@@ -38,7 +38,6 @@ public:
     virtual ~expression(){}
     //解释器
     void interpreter(PlayContext* context) {
-        //第一种方式
         string playKey;
         double playValue;
         if (context->getContext().size() == 0) {
@@ -49,21 +48,13 @@ public:
             istr >> playKey >> playValue;
             string text;
             getline(istr, text);
-            context->setContext(text);
+            if (text.empty()) {
+                context->setContext("");
+            } else {
+                context->setContext(string(text.begin() + 1, text.end()));
+            }
             executable(playKey, playValue);
         }
-
-        //第二种方式
-        // if (context->getContext().size() == 0) {
-        //     return;
-        // } else {
-        //     string playKey = context->getContext().substr(0, 1);
-        //     string playText = context->getContext().substr(2);
-        //     double palyValue = atof(playText.c_str());
-        //     context->setContext(context->getContext().substr(context->getContext().find(" ")+1));
-
-        //     executable(playKey, palyValue);
-        // }
     }
 
     //解析
