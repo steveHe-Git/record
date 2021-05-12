@@ -430,7 +430,142 @@ int main()
 const_cast顾名思义，用来将对象的常量属性转除，使常量可以被修改。const_cast<type>(varible)中的type必须是指针，引用，或者指向对象类型成员的指针。比如以下用法是错误的
 const int a = 3;
 const_cast<int>(a) = 4; //错误的
-const_cast<int&>(a) = 4; //正确的
+const_cast<int&>(a) = 4; //正确的，去掉顶层的const;
+
+const_cast用于去掉底层const的(但是也可以去除顶层的)；
+1. 常量指针被转化成非常量指针，转换后指针指向原来的变量(即转换后的指针地址不变)。
+    //1. 指针指向类  
+    const A *pca1 = new A;  
+    A *pa2 = const_cast<A*>(pca1);  //常量对象转换为非常量对象  
+    pa2->m_iNum = 200;    //fine  
+     
+    //转换后指针指向原来的对象  
+    cout<< pca1->m_iNum <<pa2->m_iNum<<endl; //200 200  
+      
+    //2. 指针指向基本类型  
+    const int ica = 100;  
+    int * ia = const_cast<int *>(&ica);  
+    *ia = 200;  
+    cout<< *ia <<ica<<endl;   //200 100  
+
+2. 常量引用转为非常量引用。
+　　A a0;
+　　const A &a1 = a0;
+　　A a2 = const_cast<A&>(a1);　//常量引用转为非常量引用
+　　a2.m_iNum = 200;    //fine 
+　　cout<< a0.m_iNum << a1.m_iNum << a2.m_iNum << endl; //１　1 200
+
+3. 常量对象(或基本类型)不可以被转换成非常量对象(或基本类型)。
+    //常量对象被转换成非常量对象时出错
+    const A ca;
+    A a = const_cast<A>(ca);  //不允许
+    const int i = 100;
+    int j = const_cast<int>(i);  //不允许
+
+4. C++ primer 原话是“如果常量本身不是常量，获得的权限是合法的， 如果本身是常量，使用const_cast再写的后果是未定义的。”
+    所以如果单纯int a,是好理解的，就是达到了我们的目的。如果a本身就是const，就是那块内存被定义为const的话，这样的结果是未定义的，在我的编译器和机器上，这个被定义为无法改变，可是在其他机器上，就不一定了。
+	所以，const_cast的目的并不是为了让你去修改一个本身被定义为const的值，因为这样做的后果是无法预期的。const_cast的目的是修改一些指针/引用的权限，如果我们原本无法通过这些指针/引用修改某块内存的值，现在你可以了。
+    const int a = 100;     			//onst_cast的目的并不是为了让你去修改一个本身被定义为const的值，因为这样做的后果是无法预期的
+	int *p = const_cast<int*>(&a); 	//合法，去掉const属性，但是只能读不能写
+	*p = 200;              			//机器表现不一样，这里可以编译通过，但是有可能别的机器上是未定义的行为，虽然编译通过，但是别这样写
+	cout << "&a = "<<&a<<endl;
+	cout << "p = " <<p<<endl;
+ 
+	cout <<"a1 = "<<a<<endl;
+	cout <<"a2 = "<<*(int*)&a<<endl;
+	cout <<"*p = "<<*p<<endl;
+	结果：   &a = 0x7ffde154516c
+            p = 0x7ffde154516c
+            a1 = 100
+            a2 = 200
+            *p = 200
+5.example
+      // 第一种情况: const修饰指针指向对象
+      const A *pA = new A(200);
+  	  //pA->m_nNum = 100;            // compile error ! pA指针指向的对象为常对象，其成员变量值为只读的。
+      A* pAA = const_cast<A*>(pA); // 去掉pA指针的const属性
+      pAA->m_nNum = 199;           // pAA指针指向的对象为一般对象，其成员变量值可读写。
+      cout << pA->m_nNum << endl;  // 199
+  
+      // 第二种情况: const修饰指针
+      A *pB = new A();
+      pA = pB;  // 思考这个原因。为什么这样子可以呢？且再看下面的这种情况：
+      A* const pC = new A(1);
+      cout << pC->m_nNum << endl;  // 1
+      A *pD = new A(2);
+      //pC = pD;                     // compile error ! pC指针变量被const修饰，其值是只读的。
+  
+      A*& pE = const_cast<A*>(pC); // 去掉pC指针变量的const属性。再赋给指针引用变量
+      pE = pD;
+      cout << pC->m_nNum << endl;  // 2
+  
+      A* pAS = const_cast<A*>(pC); // 去掉pC指针变量的const属性。再赋给一般指针变量
+      pAS->m_nNum = 3;             // 通过去掉const属性的指针变量修改其成员变量值
+      cout << pC->m_nNum << endl;  // 3
+  
+      // 第三种情况：const修饰指针和指针对象
+      const A* const pCC = new A(110);
+      const A* pCC2 = const_cast<A*>(pCC);
+     //pCC2->m_nNum = 119; //  error C3490: 由于正在通过常量对象访问“m_nNum”，因此无法对其进行修改
+      pCC2 = NULL;
+      A* const pCC3 = const_cast<A*>(pCC);
+      pCC3->m_nNum = 119;
+      //pCC3 = NULL; error C3892: “pCC3”: 不能给常量赋值
+      A* pCC4 = const_cast<A*>(pCC);
+      pCC4->m_nNum = 120;
+      pCC4 = NULL;
+  
+      // 第四种情况：const修饰对象，去const属性后赋给一般对象
+      const A a;
+      //a.m_nNum = 101; // compile error ! 常对象具有只读属性。
+      A b = const_cast<A&>(a);
+      b.m_nNum = 101;
+      cout << a.m_nNum << endl; // 100
+      cout << b.m_nNum << endl; // 101
+  
+      // 第五种情况：const修饰对象，去const属性后赋给引用对象
+      const A c;
+      //c.m_nNum = 101; // compile error ! 常对象具有只读属性。
+      A& d = const_cast<A&>(c);
+      d.m_nNum = 102;
+      cout << c.m_nNum << endl; // 102
+      cout << d.m_nNum << endl; // 102
+  
+      // 第六种情况：const修饰对象，对象指针去const属性后赋给指针
+      const A e;
+      //e.m_nNum = 103; // compile error ! 常对象具有只读属性。
+      A* pe = const_cast<A*>(&e);
+      pe->m_nNum = 103;
+      cout << e.m_nNum << endl; // 103
+      cout << pe->m_nNum << endl; // 103
+  
+      // 第七种情况：const修饰局部变量
+      const int xx = 50;
+      int* yy = const_cast<int *>(&xx);
+      *yy = 200;
+      cout << xx << endl; // 50
+      cout << *yy << endl; // 200
+      int aa = xx;
+      cout << aa << endl; // 50
+  
+      // 第八种情况：const修饰局部变量。去const属性后赋给一般变量
+      const int xxx = 50;
+      int yyy = const_cast<int&>(xxx);
+      yyy = 51;
+      cout << xxx << endl; // 50
+      cout << yyy << endl; // 51
+  
+      // 第九种情况：const修饰局部变量。去const属性后赋给引用变量
+      const int xxx2 = 50;
+      int& yyy2 = const_cast<int&>(xxx2);
+      yyy2 = 52;
+     cout << xxx2 << endl; // 50
+     cout << yyy2 << endl; // 52
+
+总结：
+    1. 使用const_cast去掉const属性，其实并不是真的改变原类类型(或基本类型)的const属性，它只是又提供了一个接口(指针或引用)，使你可以通过这个接口来改变类型的值。也许这也是const_case只能转换指针或引用的一个原因吧。
+    2. 使用const_case添加const属性，也是提供了一个接口，来不让修改其值，不过这个添加const的操作没有什么实际的用途(也许是我认识太浅了)。
+
 
 2.dynamic_cast
 多态类之间的类型转换用daynamic_cast。
@@ -774,7 +909,7 @@ c++中引入了右值引用和移动语义，可以避免无谓的复制，提�
 `C++`中所有的值都必然属于左值、右值二者之一。左值是指表达式结束后依然存在的*持久化对象*，右值是指表达式结束时就不再存在的*临时对象*。所有的具名变量或者对象都是左值，而右值不具名。很难得到左值和右值的真正定义，但是有一个可以区分左值和右值的便捷方法：**看能不能对表达式取地址，如果能，则为左值，否则为右值**
 
 右值分为将亡值和纯右值，纯右值就是c++98标准中右值的概念，如非引用返回的函数返回的临时变量值；一些运算表达式，如1+2产生的临时变量；不跟对象关联的字面量值，如2，'c'，true，"hello"；这些值都不能够被取地址；
-而将亡值则是c++11新增的和右值引用相关的表达式，这样的表达式通常时将要移动的对象、T&&函数返回值、std::move()函数的返回值等；
+而将亡值则是c++11新增的和右值引用相关的表达式，这样的表达式通常是将要移动的对象、T&&函数返回值、std::move()函数的返回值等；
 不懂将亡值和纯右值的区别其实没关系，统一看作右值即可，不影响使用。
     int i=0;// i是左值， 0是右值
     class A {
@@ -1293,7 +1428,7 @@ MAsgn = 0
 
 可以看到效果是明显的，虽然没有测试时间，但是确实可以减少拷贝。emplace_back()可以直接通过构造函数的参数构造对象，但前提是要有对应的构造函数。
 
-对于map和set，可以使用emplace()。基本上emplace_back()对应push_bakc(), emplce()对应insert()。
+对于map和set，可以使用emplace()。基本上emplace_back()对应push_back(), emplce()对应insert()。
 
 移动语义对swap()函数的影响也很大，之前实现swap可能需要三次内存拷贝，而有了移动语义后，就可以实现高性能的交换函数了。
 	template <typename T>
