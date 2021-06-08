@@ -178,3 +178,278 @@ logout status.login success.pay error.
 从结果上看，前两次都支付成功了，而第三次失败。符合我们的期待。
 ```
 
+# Gmock详讲
+
+> Gmock 匹配器
+
+```cpp
+    EXPECT_CALL(mock_object, method(matcher1, matcher2, ...))
+        .With(multi_argument_matcher)
+        .Times(cardinality)
+        .InSequence(sequences)
+        .After(expectations)
+        .WillOnce(action)
+        .WillRepeatedly(action)
+        .RetiresOnSaturation();
+method(matcher1, matcher2, …)中的method就是你Mock类中的某个方法名，比如上述的getArbitraryString;而matcher（匹配器）的意思是定义方法参数的类型;
+
+
+EXPECT_CALL(mockTurtle, getX()).Times(testing::AtLeast(5)).
+    WillOnce(testing::Return(100)).WillOnce(testing::Return(150)).
+    WillRepeatedly(testing::Return(200))
+这个期望行为的定义的意思是：
+    调用mockTurtle的getX()方法
+    这个方法会至少调用5次
+    第一次被调用时返回100
+    第2次被调用时返回150
+    从第3次被调用开始每次都返回200  
+    
+匹配器:
+_	         可以代表任意类型
+A() or An()	 
+    
+一般比较：
+Eq(value) 或者 value	argument == value，method中的形参必须是value
+Ge(value)	         argument >= value，method中的形参必须大于等于value
+Gt(value)	         argument > value
+Le(value)	         argument <= value
+Lt(value)	         argument < value
+Ne(value)	         argument != value
+IsNull()	         method的形参必须是NULL指针
+NotNull()	         argument is a non-null pointer
+Ref(variable)	     形参是variable的引用
+TypedEq(value)	     形参的类型必须是type类型，而且值必须是value
+
+浮点比较：
+DoubleEq(a_double)	形参是一个double类型，比如值近似于a_double，两个NaN是不相等的
+FloatEq(a_float)	同上，只不过类型是float
+NanSensitiveDoubleEq(a_double)	形参是一个double类型，比如值近似于a_double，两个NaN是相等的，这个是用户所希望的方式
+NanSensitiveFloatEq(a_float)	同上，只不过形参是float
+
+字符串匹配
+这里的字符串即可以是C风格的字符串，也可以是C++风格的。
+ContainsRegex(string)	形参匹配给定的正则表达式
+EndsWith(suffix)	    形参以suffix截尾
+HasSubstr(string)	    形参有string这个子串
+MatchesRegex(string)	从第一个字符到最后一个字符都完全匹配给定的正则表达式.
+StartsWith(prefix)	    形参以prefix开始
+StrCaseEq(string)	    参数等于string，并且忽略大小写
+StrCaseNe(string)	    参数不是string，并且忽略大小写
+StrEq(string)	        参数等于string
+StrNe(string)	        参数不等于string
+    
+容器的匹配
+很多STL的容器的比较都支持==这样的操作，对于这样的容器可以使用上述的Eq(container)来比较。但如果你想写得更为灵活，可以使用下面的这些容器匹配方法：
+Contains(e)	                在method的形参中，只要有其中一个元素等于e
+Each(e)	                    参数各个元素都等于e
+ElementsAre(e0, e1, …, en)	形参有n+1的元素，并且挨个匹配
+ElementsAreArray(array) 或者ElementsAreArray(array, count)	和ElementsAre()类似，除了预期值/匹配器来源于一个C风格数组
+ContainerEq(container)	     类似Eq(container)，就是输出结果有点不一样，这里输出结果会带上哪些个元素不被包含在另一个容器中
+Pointwise(m, container)
+
+上述的一些匹配器都比较简单，我就随便打包举几最简单的例子演示一下吧： 我稍微修改一下之前的Foo.h和MockFoo.h
+FooInterface.h
+#ifndef FOOINTERFACE_H_
+#define FOOINTERFACE_H_
+#include <string>
+namespace seamless {
+class FooInterface {
+public:
+        virtual ~FooInterface() {}
+
+public:
+        virtual std::string getArbitraryString() = 0;
+};
+}  // namespace seamless
+    
+MockFoo.h 增加了2个方法
+    #ifndef MOCKFOO_H_
+    #define MOCKFOO_H_
+
+    #include <gmock/gmock.h>
+    #include <string>
+    #include <vector>
+    #include "FooInterface.h"
+
+    namespace seamless {
+
+    class MockFoo: public FooInterface {
+    public:
+            MOCK_METHOD0(getArbitraryString, std::string());
+            MOCK_METHOD1(setValue, void(std::string& value));
+            MOCK_METHOD2(setDoubleValues, void(int x, int y));
+    };
+
+    }  // namespace seamless
+
+    #endif // MOCKFOO_H_
+
+FooMain.h
+1    #include <cstdlib>
+2    #include <gmock/gmock.h>
+3    #include <iostream>
+4    #include <string>
+
+5    #include "MockFoo.h"
+
+6    using namespace seamless;
+7    using namespace std;
+
+8    using ::testing::Assign;
+9    using ::testing::Eq;
+10   using ::testing::Ge;
+11   using ::testing::Return;
+
+12   int main(int argc, char** argv) {
+13           ::testing::InitGoogleMock(&argc, argv);
+
+14           string value = "Hello World!";
+15           MockFoo mockFoo;
+
+16           EXPECT_CALL(mockFoo, setValue(testing::_));
+17           mockFoo.setValue(value);
+
+             // 这里我故意犯错
+18           EXPECT_CALL(mockFoo, setDoubleValues(Eq(1), Ge(1)));
+19           mockFoo.setDoubleValues(1, 0)；
+             return EXIT_SUCCESS;
+    }
+
+    第16行，让setValue的形参可以传入任意参数
+    另外，我在第18~19行故意犯了个错（为了说明上述这些匹配器的作用），我之前明明让setDoubleValues第二个参数得大于等于1,但我实际传入时却传入一个0。这时程序运行时就报错了：
+```
+
+> Gmock复杂的匹配器
+
+```
+## 成员匹配器
+Field(&class::field, m)	        argument.field (或 argument->field, 当argument是一个指针时)与匹配器中的m匹配, 这里的argument是一个class类的实例.
+Key(e)	                        形参（argument）比较是一个类似map这样的容器，然后argument.first的值等于e
+Pair(m1, m2)	                形参（argument）必须是一个pair，并且argument.first等于m1，argument.second等于m2.
+Property(&class::property, m)	argument.property()(或argument->property(),当argument是一个指针时)与匹配器m匹配, 这里的argument是一个class类的实例.
+---------------------------------------------------------------------------------------------------------------------------------   
+TEST(TestField, Simple) {
+    MockFoo mockFoo;
+    Bar bar;
+5    EXPECT_CALL(mockFoo, get(Field(&Bar::num, Ge(0)))).Times(1);
+    mockFoo.get(bar);
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleMock(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+这里我们使用Google Test来写个测试用例，这样看得比较清楚。
+    第5行，我们定义了一个Field(&Bar::num, Ge(0))，以说明Bar的成员变量num必须大于等于0。
+    
+上面这个是正确的例子，我们为了说明Field的作用，传入一个bar.num = -1试试。
+TEST(TestField, Simple) {
+    MockFoo mockFoo;
+    Bar bar;
+    bar.num = -1;
+    EXPECT_CALL(mockFoo, get(Field(&Bar::num, Ge(0)))).Times(1);
+    mockFoo.get(bar);
+}
+
+## 匹配函数或函数对象的返回值
+ResultOf(f, m)	f(argument) 与匹配器中的m匹配, 这里的f是一个函数或函数对象.
+
+## 指针匹配器
+Pointee(m)	argument (不论是智能指针还是原始指针) 指向的值与匹配器中的m匹配.
+    
+## 复合匹配器
+AllOf(m1, m2, …, mn)	argument 匹配所有的匹配器m1到mn
+AnyOf(m1, m2, …, mn)	argument 至少匹配m1到mn中的一个
+Not(m)	                argument 不与匹配器m匹配
+    
+EXPECT_CALL(foo, DoThis(AllOf(Gt(5), Ne(10))));          //传入的参数必须 >5 并且 <= 10
+EXPECT_CALL(foo, DoThat(Not(HasSubstr("blah")), NULL));  //第一个参数不包含“blah”这个子串
+
+### 基数
+AnyNumber()	     函数可以被调用任意次.
+AtLeast(n)	     预计至少调用n次.
+AtMost(n)	     预计至多调用n次.
+Between(m, n)	 预计调用次数在m和n(包括n)之间.
+Exactly(n) 或 n	预计精确调用n次. 特别是, 当n为0时,函数应该永远不被调用.
+    
+### 行为（Actions）
+    Actions（行为）用于指定Mock类的方法所期望模拟的行为：比如返回什么样的值、对引用、指针赋上怎么样个值，等等。 值的返回
+Return()	        让Mock方法返回一个void结果
+Return(value)	    返回值value
+ReturnNull()	    返回一个NULL指针
+ReturnRef(variable)	返回variable的引用.
+ReturnPointee(ptr)	返回一个指向ptr的指针
+
+Assign(&variable, value)	将value分配给variable
+#使用函数或者函数对象（Functor）作为行为
+Invoke(f)	  使用模拟函数的参数调用f, 这里的f可以是全局/静态函数或函数对象.
+Invoke(object_pointer, &class::method)	使用模拟函数的参数调用object_pointer对象的mothod方法.
+#复合动作
+DoAll(a1, a2, …, an)	每次发动时执行a1到an的所有动作.
+IgnoreResult(a)	执行动作a并忽略它的返回值. a不能返回void.
+    
+这里我举个例子来解释一下DoAll()的作用，我个人认为这个DoAll()还是挺实用的。例如有一个Mock方法：
+    virtual int getParamter(std::string* name,  std::string* value) = 0
+对于这个方法，我这回需要操作的结果是将name指向value的地址，并且得到方法的返回值。
+类似这样的需求，我们就可以这样定义期望过程：
+TEST(SimpleTest, F1) {
+    std::string* a = new std::string("yes");
+    std::string* b = new std::string("hello");
+    MockIParameter mockIParameter;
+    EXPECT_CALL(mockIParameter, getParamter(testing::_, testing::_)).Times(1).\
+        WillOnce(testing::DoAll(testing::Assign(&a, b), testing::Return(1)));
+    mockIParameter.getParamter(a, b);
+} 
+这时就用上了我们的DoAll()了，它将Assign()和Return()结合起来了。
+
+### 序列（Sequences）
+默认时，对于定义要的期望行为是无序（Unordered）的，即当我定义好了如下的期望行为：
+            MockFoo mockFoo;
+            EXPECT_CALL(mockFoo, getSize()).WillOnce(Return(1));
+            EXPECT_CALL(mockFoo, getValue()).WillOnce(Return(string("Hello World")));
+对于这样的期望行为的定义，我何时调用mockFoo.getValue()或者何时mockFoo.getSize()都可以的。
+但有时候我们需要定义有序的（Ordered）的调用方式，即序列 (Sequences) 指定预期的顺序. 在同一序列里的所有预期调用必须按它们指定的顺序发生; 反之则可以是任意顺序.
+    using ::testing::Return;
+    using ::testing::Sequence;
+
+    int main(int argc, char **argv) {
+            ::testing::InitGoogleMock(&argc, argv);
+
+            Sequence s1, s2;
+            MockFoo mockFoo;
+            EXPECT_CALL(mockFoo, getSize()).InSequence(s1, s2).WillOnce(Return(1));
+            EXPECT_CALL(mockFoo, getValue()).InSequence(s1).WillOnce(Return(
+                    string("Hello World!")));
+            cout << "First:\t" << mockFoo.getSize() << endl;
+            cout << "Second:\t" << mockFoo.getValue() << endl;
+
+            return EXIT_SUCCESS;
+    }
+    首先在建立两个序列：s1、s2。
+    EXPECT_CALL(mockFoo, getSize()).InSequence(s1, s2)说明getSize()的行为优先于s1、s2.
+    EXPECT_CALL(mockFoo, getValue()).InSequence(s1)说明getValue()的行为在序列s1中。
+        
+当我尝试一下把mockFoo.getSize()和mockFoo.getValue()的调用对调时试试：
+            cout << "Second:\t" << mockFoo.getValue() << endl;
+            cout << "First:\t" << mockFoo.getSize() << endl;
+会测试不通过，并且报错
+```
+
+# 单元测试的经验之道
+
+```cpp
+给自己的单元测试设置了5个级别：
+    1. Level1：正常流程可用，即一个函数在输入正确的参数时，会有正确的输出;
+	2. Level2：异常流程可抛出逻辑异常，即输入参数有误时，不能抛出系统异常，而是用自己定义的逻辑异常通知上层调用代码其错误之处;
+    3. Level3：极端情况和边界数据可用，对输入参数的边界情况也要单独测试，确保输出是正确有效的;
+	4. Level4：所有分支、循环的逻辑走通，不能有任何流程是测试不到的;
+	5. Level5：输出数据的所有字段验证，对有复杂数据结构的输出，确保每个字段都是正确的
+    如上的单元测试分级是我2007年整理出来的，后来在我做的各种项目中，一般只做到Level2，重要系统或者底层服务，要做到Level3或Level4。而很少做到Level5。即便如此，就已经实现了如上所说的，很难被测试工程师发现bug。
+    除了级别外，测试方法也要区分不同系统的玩法。比如基于WEB的系统，就需要确保单元测试里可以模拟发送请求，这个一般是WEB框架提供支持的。比如我常用的web.py、Flask、Django都有支持。不仅仅可以模拟简单的请求，还可以模拟POST、cookie等。另外一般建议单独写个函数来模拟登录过程，这样系统登录后行为的测试就不必反复模拟登录了。
+    
+    ###重点1
+    单元测试一大痛苦是构造测试数据。我的看法是测试数据应该是人造的，而不是随便从产品环境dump出来一份。只有人造的数据能确保环境可控，每次运行不会因为环境改变而频繁修改testcase。我的常用玩法是测试数据分为基础数据和附加数据两部分。基础数据是所有testcase共享的，比如建立几个常用角色的用户等等。附加数据是testcase内部自己建立的。这样每次testcase运行时，先清空数据库，导入基础数据，导入附加数据，然后执行测试，验证结果。
+    ###重点2
+    各类程序的函数可以分为纯函数和副作用函数。纯函数对应的是数学里函数的概念，输出和输入是一一对应的。对一个输入有确定的输出。比如1+1=2。而副作用函数则相反，同样的输入，在不同时间和环境里，可能有不同的输出。比如任何涉及IO、网络、数据库的。副作用函数的测试比纯函数麻烦的多，因为你必须要完整的构造其所依赖的所有环境，才能够复现一个副作用函数的行为。也正因为如此，副作用函数出bug的概率比纯函数高的多。理解这个概念以后，应该尽可能的把程序里的纯函数和副作用函数进行拆解，降低副作用函数的比例和逻辑复杂度。还有，副作用函数是会传染的，一个函数如果调用了副作用函数，那么它也会变成副作用函数。
+```
+
