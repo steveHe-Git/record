@@ -292,13 +292,7 @@ FooMain.h
 
 5    #include "MockFoo.h"
 
-6    using namespace seamless;
-7    using namespace std;
 
-8    using ::testing::Assign;
-9    using ::testing::Eq;
-10   using ::testing::Ge;
-11   using ::testing::Return;
 
 12   int main(int argc, char** argv) {
 13           ::testing::InitGoogleMock(&argc, argv);
