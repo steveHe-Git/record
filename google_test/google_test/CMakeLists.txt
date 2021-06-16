@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.5)
 project(GoogleTest)
 
 # GoogleTest requires at least C++11
@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 11)
 file(GLOB fileList "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc")
 
 include_directories(include)
+include_directories(common)
+
+add_subdirectory(common)
 
 set(GLIB ${CMAKE_CURRENT_SOURCE_DIR}/lib/libgmock_main.a
          ${CMAKE_CURRENT_SOURCE_DIR}/lib/libgmock.a
@@ -18,6 +21,7 @@ foreach(file_name IN LISTS fileList)
   add_executable(${project_name} ${file_name})
   target_link_libraries(${project_name}
     ${GLIB}
+    example_lib
     pthread
     dl
     m
