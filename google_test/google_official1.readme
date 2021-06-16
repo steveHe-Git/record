@@ -1,0 +1,2128 @@
+# cmake 编译
+
+官方git 下载 https://github.com/google/googletest
+
+编译： 新建build 文件夹， 进入build 文件夹   camke .. && make 可以生成x86的静态库
+
+将gtest和gmock的头文件和生成的静态库导入工程中，即可完成编译，已尝试16.04(失败)，20.04(可以)
+
+# googtest prime
+
+## 简单测试
+
+```cpp
+int Factorial(int n);  // Returns the factorial of n
+
+// Tests factorial of 0.
+// FactorialTest为测试套件， HandlesZeroInput为测试套件下的一个测试案例
+// 整体的测试名字为FactorialTest.HandlesZeroInput
+TEST(FactorialTest, HandlesZeroInput) {
+  EXPECT_EQ(Factorial(0), 1);
+}
+
+// Tests factorial of positive numbers.
+//同一个测试套件下不同的测试案例
+TEST(FactorialTest, HandlesPositiveInput) {
+  EXPECT_EQ(Factorial(1), 1);
+  EXPECT_EQ(Factorial(2), 2);
+  EXPECT_EQ(Factorial(3), 6);
+  EXPECT_EQ(Factorial(8), 40320);
+}
+```
+
+## 测试夹具
+
+```cpp
+测试夹具从::testing::Test公有继承，里面的成员定义在protected
+使用TEST_F() 来测试
+    
+example:
+//需要进行测试的功能类
+template <typename E>  // E is the element type.
+class Queue {
+ public:
+  Queue();
+  void Enqueue(const E& element);
+  E* Dequeue();  // Returns NULL if the queue is empty.
+  size_t size() const;
+  ...
+};
+
+//定义测试夹具
+class QueueTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+     q1_.Enqueue(1);
+     q2_.Enqueue(2);
+     q2_.Enqueue(3);
+  }
+
+  // void TearDown() override {}
+
+  Queue<int> q0_;
+  Queue<int> q1_;
+  Queue<int> q2_;
+};
+
+//测试案例1
+//第一个名字必须是测试套件类名
+TEST_F(QueueTest, IsEmptyInitially) {
+  EXPECT_EQ(q0_.size(), 0);
+}
+
+//测试案例2
+TEST_F(QueueTest, DequeueWorks) {
+  int* n = q0_.Dequeue();
+  EXPECT_EQ(n, nullptr);
+
+  n = q1_.Dequeue();
+  ASSERT_NE(n, nullptr);
+  EXPECT_EQ(*n, 1);
+  EXPECT_EQ(q1_.size(), 0);
+  delete n;
+
+  n = q2_.Dequeue();
+  ASSERT_NE(n, nullptr);
+  EXPECT_EQ(*n, 2);
+  EXPECT_EQ(q2_.size(), 1);
+  delete n;
+}
+
+//测试案例调用的过程， 每一个测试案例都会重新开始一个测试夹具类
+When invoked, the RUN_ALL_TESTS() macro:
+    Saves the state of all googletest flags.
+    Creates a test fixture object for the first test.
+    Initializes it via SetUp().
+    Runs the test on the fixture object.
+    Cleans up the fixture via TearDown().
+    Deletes the fixture.
+    Restores the state of all googletest flags.
+    Repeats the above steps for the next test, until all tests have run.
+```
+
+# Advanced googletest Topics
+
+## redicate 断言以获得更好的错误消息打印
+
+```cpp
+	尽管 googletest 有一组丰富的断言，但它们永远不可能是完整的，因为预测用户可能遇到的所有场景是不可能的（也不是一个好主意）。因此，有时用户必须使用 EXPECT_TRUE() 来检查复杂的表达式，因为缺少更好的宏。这有一个问题，即没有向您显示表达式各部分的值，从而难以理解出了什么问题。作为一种变通方法，一些用户选择自己构建失败消息，将其流式传输到 EXPECT_TRUE() 中。然而，这很尴尬，尤其是当表达式有副作用或评估成本高时。
+
+googletest 为您提供了三种不同的选项来解决这个问题：
+1. 使用现有的布尔函数
+	如果您已经有一个返回 bool 的函数或函子（或可以隐式转换为 bool 的类型），您可以在谓词断言中使用它来免费打印函数参数。有关详细信息，请参阅断言参考中的 EXPECT_PRED*。
+2. 使用返回 AssertionResult 的函数
+	虽然 EXPECT_PRED*() 和朋友对于快速工作很方便，但语法并不令人满意：您必须为不同的参数使用不同的宏，而且感觉更像是 Lisp 而不是 C++。 ::testing::AssertionResult 类解决了这个问题。
+	AssertionResult 对象表示断言的结果（无论是成功还是失败，以及相关的消息）。您可以使用以下工厂函数之一创建 AssertionResult：
+namespace testing {
+
+// Returns an AssertionResult object to indicate that an assertion has
+// succeeded.
+AssertionResult AssertionSuccess();
+
+// Returns an AssertionResult object to indicate that an assertion has
+// failed.
+AssertionResult AssertionFailure();
+}
+	然后，您可以使用 << 运算符将消息流式传输到 AssertionResult 对象。
+        
+testing::AssertionResult IsEven(int n) {
+  if ((n % 2) == 0)
+    return testing::AssertionSuccess();
+  else
+    return testing::AssertionFailure() << n << " is odd";
+}
+代替：
+bool IsEven(int n) {
+  return (n % 2) == 0;
+}
+输出：
+    Value of: IsEven(Fib(4))
+    Actual: false (3 is odd)
+    Expected: true
+
+3. 使用谓词格式化程序(EXPECT_PRED*, EXPECT_PRED_FORMAT*)
+如果您发现 EXPECT_PRED* 和 EXPECT_TRUE 生成的默认消息不令人满意，或者谓词的某些参数不支持流式传输到 ostream，则可以改用谓词格式化程序断言来完全自定义消息的格式。有关详细信息，请参阅断言参考中的 EXPECT_PRED_FORMAT*。
+浮点比较
+```
+
+##  浮点测试
+
+```cpp
+//EXPECT_FLOAT_EQ
+EXPECT_FLOAT_EQ(val1,val2)
+ASSERT_FLOAT_EQ(val1,val2)
+验证两个浮点值 val1 和 val2 是否大致相等，彼此相差在 4 个 ULP 以内。
+    
+//EXPECT_DOUBLE_EQ
+EXPECT_DOUBLE_EQ(val1,val2)
+ASSERT_DOUBLE_EQ(val1,val2)
+验证两个双精度值 val1 和 val2 是否大致相等，彼此相差在 4 个 ULP 以内。
+
+//EXPECT_NEAR
+EXPECT_NEAR(val1,val2,abs_error)
+ASSERT_NEAR(val1,val2,abs_error)
+验证 val1 和 val2 之间的差值的绝对值是否不超过绝对误差界限 abs_error。 
+```
+
+## 使用 gMock 匹配器进行断言
+
+```cpp
+您可以使用带有 EXPECT_THAT 的 gMock 字符串匹配器来执行更多字符串比较技巧（子字符串、前缀、后缀、正则表达式等）。例如，
+using ::testing::HasSubstr;
+using ::testing::MatchesRegex;
+...
+  ASSERT_THAT(foo_string, HasSubstr("needle"));
+  EXPECT_THAT(bar_string, MatchesRegex("\\w*\\d+"));
+
+```
+
+## 类型比较断言
+
+```cpp
+::testing::StaticAssertTypeEq<T1, T2>();
+	断言 T1 和 T2 类型相同。如果断言得到满足，该函数不执行任何操作。如果类型不同，函数调用将无法编译，编译器错误消息会说 T1 和 T2 不是同一类型，并且很可能（取决于编译器）显示 T1 和 T2 的实际值 ；
+    
+    警告：当在类模板或函数模板的成员函数中使用时，StaticAssertTypeEq<T1, T2>() 仅在函数被实例化时有效。 例如，给定：
+template <typename T> class Foo {
+ public:
+  void Bar() { testing::StaticAssertTypeEq<int, T>(); }
+};
+
+the code:
+void Test1() { Foo<bool> foo; }
+will not generate a compiler error, as Foo<bool>::Bar() is never actually instantiated. Instead, you need:
+
+void Test2() { Foo<bool> foo; foo.Bar(); }
+to cause a compiler error.
+```
+
+## 断言放置的位置
+
+```cpp
+1. 可以放置断言在任何c++ 函数中，但是在测试夹具类中， FAIL* and ASSERT_*只能被使用在 返回值为void的函数
+2. 如果放置在返回值为非void的函数，将会导致编译错误 "error: void value not ignored as it ought to be" or "cannot initialize return object of type 'bool' with an rvalue of type 'void'" or "error: no viable conversion from 'void' to 'string'
+3. 如果需要使用致命断言在非void的函数，可以使用T2 Foo(T1 x)被替换为void Foo(T1 x, T2* result)；
+4. 如果上述第三点也不行的话， 只能调整产生非致命断言， 例如ADD_FAILURE* and EXPECT_*
+```
+
+##  跳过测试
+
+```cpp
+与断言 SUCCEED() 和 FAIL() 相关，您可以使用 GTEST_SKIP() 宏阻止在运行时进一步执行测试。 当您需要在运行时检查被测系统的先决条件并以有意义的方式跳过测试时，这很有用。
+GTEST_SKIP() 可用于单个测试用例或派生自 ::testing::Environment 或 ::testing::Test 的类的 SetUp() 方法。 例如： 
+
+//普通测试
+TEST(SkipTest, DoesSkip) {
+  GTEST_SKIP() << "Skipping single test";
+  EXPECT_EQ(0, 1);  // Won't fail; it won't be executed
+}
+
+//夹具测试
+class SkipFixture : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    GTEST_SKIP() << "Skipping all tests for this fixture";
+  }
+};
+// Tests for SkipFixture won't be executed.
+TEST_F(SkipFixture, SkipsOneTest) {
+  EXPECT_EQ(5, 7);  // Won't fail
+}
+```
+
+## 教学谷歌测试如何打印您的值
+
+```cpp
+谷歌测试打印参数值，以帮助您调试。这是使用用户扩展值打印机。
+这台打印机知道如何打印内置 c + + 类型、 本机数组、 STL 容器和支持的任何类型<<运算符。对于其他类型，它将打印原始字节的值，并希望你的用户可以搞。
+如前所述，打印机是可扩展的。这意味着您可以教它更好地在印刷您特定类型比要转储的字节数。要做到这一点，定义<<为您的类型：
+#include <ostream>
+
+namespace foo {
+
+class Bar {  // We want googletest to be able to print instances of this.
+...
+  // Create a free inline friend function.
+  friend std::ostream& operator<<(std::ostream& os, const Bar& bar) {
+    return os << bar.DebugString();  // whatever needed to print bar to os
+  }
+};
+
+// If you can't declare the function in the class it's important that the
+// << operator is defined in the SAME namespace that defines Bar.  C++'s look-up
+// rules rely on that.
+std::ostream& operator<<(std::ostream& os, const Bar& bar) {
+  return os << bar.DebugString();  // whatever needed to print bar to os
+}
+
+}  // namespace foo
+
+有时，这可能不是一个选项： 您的团队可能会认为好的风格有<<运算符的栏或栏可能已经有<<运算符不了你想要什么 （和改变不了它）。如果是这样，而是可以定义这样一个PrintTo()函数：
+#include <ostream>
+
+namespace foo {
+
+class Bar {
+  ...
+  friend void PrintTo(const Bar& bar, std::ostream* os) {
+    *os << bar.DebugString();  // whatever needed to print bar to os
+  }
+};
+
+// If you can't declare the function in the class it's important that PrintTo()
+// is defined in the SAME namespace that defines Bar.  C++'s look-up rules rely
+// on that.
+void PrintTo(const Bar& bar, std::ostream* os) {
+  *os << bar.DebugString();  // whatever needed to print bar to os
+}
+
+}  // namespace foo
+
+
+如果您同时定义了 << 和 PrintTo()，则在涉及 googletest 时将使用后者。这允许您自定义值在 googletest 输出中的显示方式，而不会影响依赖于其 << 运算符行为的代码。
+如果您想自己使用 googletest 的值打印机打印值 x，只需调用 ::testing::PrintToString(x)，它返回一个 std::string：
+vector<pair<Bar, int> > bar_ints = GetBarIntVector();
+EXPECT_TRUE(IsCorrectBarIntVector(bar_ints))
+    << "bar_ints = " << testing::PrintToString(bar_ints); 
+```
+
+## 死亡测试
+
+```cpp
+	“死亡测试”用于测试程序是否会按照预期的方式崩溃。
+ 	这些断言产生一个新进程并在该进程中执行被测代码。这是如何发生的取决于平台和量::testing::GTEST_FLAG(death_test_style)，它是从命令行标志--gtest_death_test_style 初始化的。
+	在 POSIX 系统上，fork()（或 Linux 上的 clone()）用于生成子节点，之后：
+        如果变量的值为“fast”，则立即执行死亡测试语句。
+        如果变量的值是“线程安全的”，则子进程会像最初调用时一样重新执行单元测试二进制文件，但会添加一些额外的标志以仅运行正在考虑的单人死亡测试。
+        
+变量的其他值是非法的，会导致死亡测试失败。目前，该标志的默认值为“fast”。
+
+如果死亡测试语句在没有死亡的情况下运行完成，子进程仍将终止，并且断言失败。
+
+//用法EXPECT_DEATH
+EXPECT_DEATH({
+  int n = 5;
+  DoSomething(&n);
+}, "Error on line .* of DoSomething()");
+
+EXPECT_DEATH(statement,matcher)
+ASSERT_DEATH(statement,matcher)
+*_DEATH用来验证statement使程序产生中断的非0的状态退出，并伴随着stderr的输出(通过匹配器指定的输出)；
+	参数statement是被测试的代码语句;
+	参数matcher可以是const std::string&，或者是一个正则表达式；
+
+EXPECT_DEATH(DoSomething(42), "My error");
+验证语句DoSomething(42)造成进程死掉并伴随着错误信息"My error"的打印
+
+//EXPECT_DEATH_IF_SUPPORTED
+EXPECT_DEATH_IF_SUPPORTED(statement,matcher)
+ASSERT_DEATH_IF_SUPPORTED(statement,matcher)
+如果死亡测试是支持的，作用同EXPECT_DEATH验证一样，如果不支持， 则不验证任何东西；
+    
+//EXPECT_DEBUG_DEATH
+EXPECT_DEBUG_DEATH(statement,matcher)
+ASSERT_DEBUG_DEATH(statement,matcher)
+处于debug模式下的作用同EXPECT_DEATH一样，当不处于debug模式(NDEBUG被定义)，仅仅执行statement语句；
+    
+//EXPECT_EXIT
+EXPECT_EXIT(statement,predicate,matcher)
+ASSERT_EXIT(statement,predicate,matcher)
+    验证statement使程序产生中断的退出状态满足predicate，并伴随着错误信息打印
+其中predicate 是一个函数或者功能，接收一个int类型的退出码或者信号，返回一个bool类型
+    谷歌测试提供了两中这类的函数，分别是：
+    // Returns true if the program exited normally with the given exit status code.
+    ::testing::ExitedWithCode(exit_code);
+
+    // Returns true if the program was killed by the given signal.
+    // Not available on Windows.
+    ::testing::KilledBySignal(signal_number);
+
+//造成程序崩溃并产生0的退出码 验证通过
+EXPECT_EXIT(NormalExit(), testing::ExitedWithCode(0), "Success");
+//造成程序崩溃并产生信号11的段错误 验证通过
+EXPECT_EXIT(NormalExit(), testing::KilledBySignal(11), "Success");
+
+//example:
+TEST(MyDeathTest, Foo) {
+  // This death test uses a compound statement.
+  ASSERT_DEATH({
+    int n = 5;
+    Foo(&n);
+  }, "Error on line .* of Foo()");
+}
+
+TEST(MyDeathTest, NormalExit) {
+  EXPECT_EXIT(NormalExit(), testing::ExitedWithCode(0), "Success");
+}
+
+TEST(MyDeathTest, KillProcess) {
+  EXPECT_EXIT(KillProcess(), testing::KilledBySignal(SIGKILL),
+              "Sending myself unblockable signal");
+}
+
+调用 int n = 5;&& Foo(&n); 使程序崩溃，输出"Error on line .* of Foo()"
+调用NormalExit()使程序崩溃产生退出码0，输出"Success"
+调用KillProcess()使程序崩溃产生信号11，输出"Success" 
+    
+
+//
+如果测试夹具类被正常测试和死亡测试共享，您可以使用 using 或 typedef 为夹具类引入别名并避免重复其代码： 
+class FooTest : public testing::Test { ... };
+using FooDeathTest = FooTest;
+
+TEST_F(FooTest, DoesThis) {
+  // normal test
+}
+
+TEST_F(FooDeathTest, DoesThat) {
+  // death test
+}
+
+正则表达式的语法：
+c 		matches any literal character c //匹配任何原义字符c
+\\d 	matches any decimal digit       //匹配任何十进制数字
+\\D 	matches any character that’s not a decimal digit //匹配任何字符不是十进制数字
+\\f 	matches \f  // 
+\\n 	matches \n  //
+\\r 	matches \r  //
+\\s 	matches any ASCII whitespace, including \n  //匹配任何 ASCII 空白，包括\n
+\\S 	matches any character that’s not a whitespace //不匹配任何 ASCII 空白，包括\n
+\\t 	matches \t
+\\v 	matches \v
+\\w 	matches any letter, _, or decimal digit //匹配任何字母、 _或十进制数字
+\\W 	matches any character that \\w doesn’t match //不匹配任何字母、 _或十进制数字
+\\c 	matches any literal character c, which must be a punctuation //匹配任何原义字符c，而后者必须是标点符号
+. 		matches any single character except \n //匹配除\n之外的任何单个字符
+A? 		matches 0 or 1 occurrences of A				//匹配0-1个
+A* 		matches 0 or many occurrences of A			//匹配0-n个
+A+ 		matches 1 or many occurrences of A			//匹配至少一个
+^ 		matches the beginning of a string (not that of each line) //匹配字符串的开头 （不是每行）
+$ 		matches the end of a string (not that of each line)	//匹配字符串的末尾 （不是每行）
+xy 		matches x followed by y                            //匹配x后面跟着Y
+    
+为了帮助您确定您的系统上可用的能力，谷歌测试定义宏GTEST_USES_POSIX_RE = 1时，它使用 POSIX 扩展正则表达式，或GTEST_USES_SIMPLE_RE = 1时，它使用简单的版本
+ 
+    
+//死亡测试运行方式
+1. fast方式（默认的方式）
+testing::FLAGS_gtest_death_test_style = "fast";
+
+2. threadsafe方式
+testing::FLAGS_gtest_death_test_style = "threadsafe";
+
+//example
+TEST(MyDeathTest, TestOne) {
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  // This test is run in the "threadsafe" style:
+  ASSERT_DEATH(ThisShouldDie(), "");
+}
+
+TEST(MyDeathTest, TestTwo) {
+  // This test is run in the "fast" style:
+  ASSERT_DEATH(ThisShouldDie(), "");
+}
+
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "fast";
+  return RUN_ALL_TESTS();
+} 
+
+注意事项:
+1. 不要在死亡测试里释放内存。
+2. 在父进程里再次释放内存。
+3. 不要在程序中使用内存堆检查。
+```
+
+## 在(Sub-routines)子程序中使用断言 
+> 添加断言的痕迹
+```cpp
+注意：如果您想在子程序中放置一系列测试断言以检查复杂条件，请考虑使用自定义 GMock 匹配器。 这使您可以在出现故障时提供更具可读性的错误消息，并避免出现下面描述的所有问题。 
+    
+//为断言添加跟踪
+如果从多个地方调用一个测试子例程，当它内部的断言失败时，可能很难判断失败来自子例程的哪个调用。 您可以使用额外的日志记录或自定义失败消息来缓解此问题，但这通常会使您的测试变得混乱。 更好的解决方案是使用 SCOPED_TRACE 宏或 ScopedTrace 实用程序：
+    
+SCOPED_TRACE(message);
+
+ScopedTrace trace("file_path", line_number, message);
+其中 message 可以是任何可流式传输到 std::ostream 的东西。 SCOPED_TRACE 宏将导致在每个失败消息中添加当前文件名、行号和给定消息。 ScopedTrace 在参数中接受显式文件名和行号，这对于编写测试助手很有用;
+ 
+//example
+10: void Sub1(int n) {
+11:   EXPECT_EQ(Bar(n), 1);
+12:   EXPECT_EQ(Bar(n + 1), 2);
+13: }
+14:
+15: TEST(FooTest, Bar) {
+16:   {
+17:     SCOPED_TRACE("A");  // This trace point will be included in
+18:                         // every failure in this scope.
+19:     Sub1(1);
+20:   }
+21:   // Now it won't.
+22:   Sub1(9);
+23: }
+could result in messages like these:
+
+path/to/foo_test.cc:11: Failure
+Value of: Bar(n)
+Expected: 1
+  Actual: 2
+Google Test trace:
+path/to/foo_test.cc:17: A
+
+path/to/foo_test.cc:12: Failure
+Value of: Bar(n + 1)
+Expected: 2
+  Actual: 3
+如果没有跟踪，就很难知道两次失败分别来自哪个 Sub1() 调用。 （您可以在 Sub1() 中的每个断言中添加一条额外的消息来指示 n 的值，但这很乏味。）
+```
+
+> ### Propagating(传播) Fatal Failures
+
+```cpp
+使用 ASSERT_* 和 FAIL* 时的一个常见陷阱是不明白当它们失败时，它们只会中止当前函数，而不是整个测试。 例如，以下测试将出现段错误： 
+void Subroutine() {
+  // Generates a fatal failure and aborts the current function.
+  ASSERT_EQ(1, 2);
+
+  // The following won't be executed.
+  ...
+}
+
+TEST(FooTest, Bar) {
+  Subroutine();  // The intended behavior is for the fatal failure
+                 // in Subroutine() to abort the entire test.
+
+  // The actual behavior: the function goes on after Subroutine() returns.
+  int* p = nullptr;     		//没有分配内存
+  *p = 3;  // Segfault!			//访问空指针导致段错误
+}
+
+为了缓解这种情况，googletest 提供了三种不同的解决方案。 您可以使用异常，(ASSERT|EXPECT)_NO_FATAL_FAILURE 断言或 HasFatalFailure() 函数。 它们在以下两个小节中进行了描述。 
+
+如上所示，如果您的测试调用了一个包含 ASSERT_* 失败的子程序，则该测试将在子程序返回后继续进行。 这可能不是您想要的。
+人们通常希望致命的失败像异常一样传播。 为此，googletest 提供了以下宏： 
+ASSERT_NO_FATAL_FAILURE(statement); 	
+EXPECT_NO_FATAL_FAILURE(statement);
+//验证statement不会产生任何新的致命性错误在当前线程中
+//example
+ASSERT_NO_FATAL_FAILURE(Foo());
+
+int i;
+EXPECT_NO_FATAL_FAILURE({
+  i = Bar();
+});
+
+//HasFatalFailure
+如果当前测试中的断言遭遇致命失败，::testing::Test 类中的 HasFatalFailure() 将返回 true。 这允许函数在子例程中捕获致命故障并提前返回。 
+class Test {
+ public:
+  ...
+  static bool HasFatalFailure();
+};
+
+基本上模拟抛出异常的行为的典型用法是： 
+TEST(FooTest, Bar) {
+  Subroutine();
+  // Aborts if Subroutine() had a fatal failure.
+  if (HasFatalFailure()) return;
+
+  // The following won't be executed.
+  ...
+}
+如果 HasFatalFailure() 在 TEST() 、 TEST_F() 或测试装置之外使用，则必须添加 ::testing::Test:: 前缀，如下所示： 
+    if (testing::Test::HasFatalFailure()) return;
+
+//注意
+类似地，如果当前测试至少有一个非致命失败，则 HasNonfatalFailure() 返回 true，如果当前测试至少有任何一种失败，HasFailure() 返回 true。 
+```
+
+## 记录附加信息 (Logging Additional Information）
+
+```cpp
+在您的测试代码中，您可以调用 RecordProperty("key", value) 来记录附加信息，其中 value 可以是字符串或整数。 如果您指定一个键，则为键记录的最后一个值将被发送到 XML 输出。 例如:
+TEST_F(WidgetUsageTest, MinAndMaxWidgets) {
+  RecordProperty("MaximumWidgets", ComputeMaxUsage());
+  RecordProperty("MinimumWidgets", ComputeMinUsage());
+}
+输出的XML像这样：
+    ...
+    <testcase name="MinAndMaxWidgets" status="run" time="0.006" classname="WidgetUsageTest" MaximumWidgets="12" MinimumWidgets="9" />
+  ...
+    
+总结：
+     RecordProperty() 是 Test 类的静态成员。 因此，如果在 TEST 主体和测试装置类之外使用，则需要以 ::testing::Test:: 为前缀。
+     key 必须是有效的 XML 属性名称，并且不能与 googletest 已经使用的名称（名称、状态、时间、类名、type_param 和 value_param）冲突。
+     允许在测试生命周期之外调用 RecordProperty()。 如果它在测试之外但在测试套件的 SetUpTestSuite() 和 TearDownTestSuite() 方法之间被调用，则它将被归因于测试套件的 XML 元素。 如果它在所有测试套件之外（例如在测试环境中）被调用，它将被归因于顶级 XML 元素。 
+```
+
+## 在同一测试套件中的测试之间共享资源 
+
+```cpp
+googletest 为每个测试创建一个新的测试夹具对象，以使测试独立且更易于调试。然而，有时测试使用的资源设置起来很昂贵，这使得每个测试一个副本的模型成本高得令人望而却步。
+
+如果测试不更改资源，则共享单个资源副本没有任何害处。因此，除了 per-test setup/tear-down 之外，googletest 还支持 per-test-suite 设置/tear-down。要使用它：
+    在您的测试夹具类（例如 FooTest ）中，将一些成员变量声明为静态的以保存共享资源。
+    在您的测试装置类之外（通常就在它的下方），定义这些成员变量，并可选择为其提供初始值。
+    在同一个测试夹具类中，定义一个静态的 void SetUpTestSuite() 函数（记住不要把它拼写为带有小 u 的 SetupTestSuite！）来设置共享资源和一个静态的 void TearDownTestSuite() 函数来拆除它们。
+
+就是这样！ googletest 在运行 FooTest 测试套件中的第一个测试之前（即在创建第一个 FooTest 对象之前）自动调用 SetUpTestSuite()，并在运行其中的最后一个测试之后（即在删除最后一个 FooTest 对象之后）调用 TearDownTestSuite()。在这两者之间，测试可以使用共享资源。
+
+请记住，测试顺序是未定义的，因此您的代码不能依赖于之前或之后的测试。此外，测试不得修改任何共享资源的状态，或者，如果它们确实修改了状态，则必须在将控制权传递给下一个测试之前将状态恢复到其原始值。
+
+这是每个测试套件设置和拆卸的示例：
+ class FooTest : public testing::Test {
+ protected:
+  // Per-test-suite set-up.
+  // Called before the first test in this test suite.
+  // Can be omitted if not needed.
+  static void SetUpTestSuite() {
+    shared_resource_ = new ...;
+  }
+
+  // Per-test-suite tear-down.
+  // Called after the last test in this test suite.
+  // Can be omitted if not needed.
+  static void TearDownTestSuite() {
+    delete shared_resource_;
+    shared_resource_ = nullptr;
+  }
+
+  // You can define per-test set-up logic as usual.
+  void SetUp() override { ... }
+
+  // You can define per-test tear-down logic as usual.
+  void TearDown() override { ... }
+
+  // Some expensive resource shared by all tests.
+  static T* shared_resource_;
+};
+
+T* FooTest::shared_resource_ = nullptr;
+
+TEST_F(FooTest, Test1) {
+  ... you can refer to shared_resource_ here ...
+}
+
+TEST_F(FooTest, Test2) {
+  ... you can refer to shared_resource_ here ...
+}
+
+//注意
+注意：虽然上面的代码声明 SetUpTestSuite() 受保护，但有时可能需要将其声明为公开的，例如与 TEST_P 一起使用时。 
+```
+
+## 全局设置和拆卸 (Global Set-Up and Tear-Down)
+
+```cpp
+Just as you can do set-up and tear-down at the test level and the test suite level, you can also do it at the test program level. Here’s how.
+
+First, you subclass the ::testing::Environment class to define a test environment, which knows how to set-up and tear-down:
+//翻译
+正如您可以在测试级别和测试套件级别进行设置和拆卸一样，您也可以在测试程序级别进行设置和拆卸。 就是这样。
+首先，您将 ::testing::Environment 类子类化以定义一个测试环境，该环境知道如何设置和拆除：
+    
+class Environment : public ::testing::Environment {
+ public:
+  ~Environment() override {}
+
+  // Override this to define how to set up the environment.
+  void SetUp() override {}
+
+  // Override this to define how to tear down the environment.
+  void TearDown() override {}
+};
+然后，您通过调用 ::testing::AddGlobalTestEnvironment() 函数向 googletest 注册环境类的实例： 
+    Environment* AddGlobalTestEnvironment(Environment* env);
+
+//流程
+现在，当 RUN_ALL_TESTS() 被调用时，它首先调用每个环境对象的 SetUp() 方法，然后在没有任何环境报告致命故障并且没有调用 GTEST_SKIP() 时运行测试。 RUN_ALL_TESTS() 总是对每个环境对象调用 TearDown()，无论测试是否运行。
+
+注册多个环境对象是可以的。在这个套件中，它们的 SetUp() 将按照它们注册的顺序被调用，它们的 TearDown() 将按照相反的顺序被调用。
+
+请注意， googletest 拥有已注册环境对象的所有权。因此不要自行删除它们。
+
+您应该在调用 RUN_ALL_TESTS() 之前调用 AddGlobalTestEnvironment()，可能在 main() 中。如果使用 gtest_main，则需要在 main() 开始之前调用它才能生效。一种方法是定义一个全局变量，如下所示：
+
+testing::Environment* const foo_env =
+    testing::AddGlobalTestEnvironment(new FooEnvironment);
+
+但是，我们强烈建议您编写自己的 main() 并在那里调用 AddGlobalTestEnvironment()，因为依赖全局变量的初始化会使代码更难阅读，并且当您注册来自不同翻译单元的多个环境并且环境具有它们之间的依赖关系（请记住，编译器不保证来自不同翻译单元的全局变量的初始化顺序）。
+```
+
+## 值参数化测试 (Value-Parameterized Tests)
+
+```cpp
+//如何编写值参数化测试
+要编写值参数化测试，首先应该定义一个夹具类。 它必须从 testing::Test 和 testing::WithParamInterface<T>（后者是一个纯接口）派生，其中 T 是参数值的类型。 为方便起见，您可以从 testing::TestWithParam<T> 派生夹具类，它本身是从 testing::Test 和 testing::WithParamInterface<T> 派生的。 T 可以是任何可复制的类型。 如果它是一个原始指针，你负责管理指向值的生命周期。
+
+注意：如果您的测试装置定义了 SetUpTestSuite() 或 TearDownTestSuite()，它们必须被声明为 public 而不是 protected 才能使用 TEST_P。 
+
+//example1
+class FooTest :
+    public testing::TestWithParam<const char*> {
+  // You can implement all the usual fixture class members here.
+  // To access the test parameter, call GetParam() from class
+  // TestWithParam<T>.
+};
+
+//example2
+// Or, when you want to add parameters to a pre-existing fixture class:
+class BaseTest : public testing::Test {
+  ...
+};
+class BarTest : public BaseTest,
+                public testing::WithParamInterface<const char*> {
+  ...
+};
+然后，使用 TEST_P 宏根据需要使用此夹具定义尽可能多的测试模式。
+TEST_P(FooTest, DoesBlah) {
+  // Inside a test, access the test parameter with the GetParam() method
+  // of the TestWithParam<T> class:
+  EXPECT_TRUE(foo.Blah(GetParam()));
+  ...
+}
+
+TEST_P(FooTest, HasBlahBlah) {
+  ...
+}
+
+最后，您可以使用 INSANTIATE_TEST_SUITE_P 宏来使用您想要的任何参数集来实例化测试套件。 GoogleTest 定义了许多用于生成测试参数的函数 - 请参阅测试参考中 INSANTIATE_TEST_SUITE_P 的详细信息。
+例如，以下语句将使用 Values 参数生成器实例化来自 FooTest 测试套件的测试，每个测试都具有参数值“meeny”、“miny”和“moe”： 
+    INSTANTIATE_TEST_SUITE_P(MeenyMinyMoe,
+                         FooTest,
+                         testing::Values("meeny", "miny", "moe"))
+        
+注意：上面的代码必须放在全局或命名空间范围内，而不是在函数范围内。
+INSANTIATE_TEST_SUITE_P 的第一个参数是测试套件实例化的唯一名称。下一个参数是测试夹具类名，最后一个参数是参数生成器。
+
+您可以多次实例化一个测试模式，因此为了区分模式的不同实例，实例化名称被添加为实际测试套件名称的前缀。请记住为不同的实例选择唯一的前缀。上面实例化的测试将具有以下名称：
+    MeenyMinyMoe/FooTest.DoesBlah/0 表示“meeny”
+    MeenyMinyMoe/FooTest.DoesBlah/1 表示“miny”
+    MeenyMinyMoe/FooTest.DoesBlah/2 表示“萌”
+    MeenyMinyMoe/FooTest.HasBlahBlah/0 表示“meeny”
+    MeenyMinyMoe/FooTest.HasBlahBlah/1 表示“miny”
+    MeenyMinyMoe/FooTest.HasBlahBlah/2 表示“萌”
+您可以在 --gtest_filter 中使用这些名称。
+
+以下语句将再次实例化来自 FooTest 的所有测试，每个测试都使用 ValuesIn 参数生成器具有参数值“cat”和“dog”：
+const char* pets[] = {"cat", "dog"};
+INSANTIATE_TEST_SUITE_P(宠物，FooTest，测试::ValuesIn(宠物));
+
+上面实例化的测试将具有以下名称：
+    Pets/FooTest.DoesBlah/0 表示“猫”
+    Pets/FooTest.DoesBlah/1 表示“狗”
+    Pets/FooTest.HasBlahBlah/0 表示“猫”
+    Pets/FooTest.HasBlahBlah/1 表示“狗”
+请注意 INSANTIATE_TEST_SUITE_P 将实例化给定测试套件中的所有测试，无论它们(套件)的定义是在 INSANTIATE_TEST_SUITE_P 语句之前还是之后。
+
+此外，默认情况下，每个没有相应 INSANTIATE_TEST_SUITE_P 的 TEST_P 都会导致测试套件 GoogleTestVerification 中的测试失败。如果您有一个测试套件，其中该遗漏不是错误，例如它位于可能因其他原因链接的库中，或者测试用例列表是动态的并且可能为空，则可以通过以下方式抑制此检查标记测试套件：
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FooTest);
+您可以查看 sample7_unittest.cc 和 sample8_unittest.cc 以获取更多示例。 
+```
+
+## 创建值参数化抽象测试
+
+```cpp
+在上面，我们在同一个源文件中定义并实例化了 FooTest。有时您可能希望在库中定义值参数化测试，并让其他人稍后实例化它们。这种模式被称为抽象测试。作为其应用程序的一个示例，当您设计接口时，您可以编写一套标准的抽象测试（可能使用工厂函数作为测试参数），希望接口的所有实现都能通过。当有人实现接口时，他们可以实例化您的套件以免费获得所有接口一致性测试。
+
+要定义抽象测试，您应该像这样组织代码：
+    将参数化测试夹具类（例如 FooTest）的定义放在头文件中，比如 foo_param_test.h。将此视为声明您的抽象测试。
+    将 TEST_P 定义放在 foo_param_test.cc 中，其中包括 foo_param_test.h。将此视为实现您的抽象测试。
+定义它们后，您可以通过包含 foo_param_test.h、调用 INSANTIATE_TEST_SUITE_P() 并根据包含 foo_param_test.cc 的库目标来实例化它们。您可以多次实例化同一个抽象测试套件，可能在不同的源文件中。
+指定值参数化测试参数的名称
+
+INSANTIATE_TEST_SUITE_P() 的可选最后一个参数允许用户指定一个函数，以根据测试参数生成自定义测试名称后缀。该函数应接受一个 testing::TestParamInfo<class ParamType> 类型的参数，并返回 std::string。
+
+testing::PrintToStringParamName 是一个内置的测试后缀生成器，它返回 testing::PrintToString(GetParam()) 的值。它不适用于 std::string 或 C 字符串。 
+    
+//注意：测试名称必须是非空的、唯一的，并且只能包含 ASCII 字母数字字符。 特别是，它们不应包含下划线 
+class MyTestSuite : public testing::TestWithParam<int> {};
+
+TEST_P(MyTestSuite, MyTest)
+{
+  std::cout << "Example Test Param: " << GetParam() << std::endl;
+}
+
+INSTANTIATE_TEST_SUITE_P(MyGroup, MyTestSuite, testing::Range(0, 10),
+                         testing::PrintToStringParamName());
+
+
+//提供自定义函子可以更好地控制测试参数名称的生成，特别是对于自动转换不会生成有用参数名称的类型（例如上面演示的字符串）。 以下示例针对多个参数、枚举类型和字符串说明了这一点，并演示了如何组合生成器。 为简洁起见，它使用 lambda： 
+enum class MyType { MY_FOO = 0, MY_BAR = 1 };
+class MyTestSuite : public testing::TestWithParam<std::tuple<MyType, std::string>> {
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    MyGroup, MyTestSuite,
+    testing::Combine(
+        testing::Values(MyType::MY_FOO, MyType::MY_BAR),
+        testing::Values("A", "B")),
+    [](const testing::TestParamInfo<MyTestSuite::ParamType>& info) {
+      std::string name = absl::StrCat(
+          std::get<0>(info.param) == MyType::MY_FOO ? "Foo" : "Bar",
+          std::get<1>(info.param));
+      absl::c_replace_if(name, [](char c) { return !std::isalnum(c); }, '_');
+      return name;
+    });
+
+```
+
+## 类型测试 
+
+```cpp
+假设您有同一个接口的多个实现，并希望确保所有实现都满足一些共同的要求。或者，您可能已经定义了几种应该符合相同“概念”的类型，并且您想要验证它。在这两种情况下，您都希望对不同类型重复相同的测试逻辑。
+
+虽然您可以为要测试的每种类型编写一个 TEST 或 TEST_F（您甚至可以将测试逻辑分解到您从 TEST 调用的函数模板中），但它很乏味且无法扩展：如果您想要 m 个测试n 种类型，您最终将编写 m*n 次测试。
+
+类型化测试允许您对类型列表重复相同的测试逻辑。您只需要编写一次测试逻辑，尽管在编写类型化测试时您必须知道类型列表。以下是您的操作方法：
+
+首先，定义一个fixture 类模板。它应该由类型参数化。记得从 ::testing::Test 派生它：
+template <typename T>
+class FooTest : public testing::Test {
+ public:
+  ...
+  using List = std::list<T>;
+  static T shared_;
+  T value_;
+};
+接下来，将类型列表与测试套件相关联，列表中的每个类型都会重复：
+using MyTypes = ::testing::Types<char, int, unsigned int>;
+TYPED_TEST_SUITE(FooTest, MyTypes);
+
+类型别名（using 或 typedef）是 TYPED_TEST_SUITE 宏正确解析所必需的。否则编译器会认为类型列表中的每个逗号都引入了一个新的宏参数。
+然后，使用 TYPED_TEST() 而不是 TEST_F() 为该测试套件定义类型化测试。您可以根据需要多次重复此操作：
+TYPED_TEST(FooTest, DoesBlah) {
+  // Inside a test, refer to the special name TypeParam to get the type
+  // parameter.  Since we are inside a derived class template, C++ requires
+  // us to visit the members of FooTest via 'this'.
+  TypeParam n = this->value_;
+
+  // To visit static members of the fixture, add the 'TestFixture::'
+  // prefix.
+  n += TestFixture::shared_;
+
+  // To refer to typedefs in the fixture, add the 'typename TestFixture::'
+  // prefix.  The 'typename' is required to satisfy the compiler.
+  typename TestFixture::List values;
+
+  values.push_back(n);
+  ...
+}
+TYPED_TEST(FooTest, HasPropertyA) { ... }
+
+您可以查看 sample6_unittest.cc 以获取完整示例。 
+```
+
+## 类型参数化测试 
+
+```cpp
+类型参数化测试类似于类型化测试，不同之处在于它们不需要您提前知道类型列表。相反，您可以先定义测试逻辑，然后用不同的类型列表实例化它。您甚至可以在同一个程序中多次实例化它。
+
+如果您正在设计一个接口或概念，您可以定义一组类型参数化测试来验证接口/概念的任何有效实现应该具有的属性。然后，每个实现的作者只需用他们的类型实例化测试套件来验证它是否符合要求，而不必重复编写类似的测试。下面是一个例子：
+
+//首先，定义一个夹具类模板，就像我们在类型化测试中所做的那样：
+template <typename T>
+class FooTest : public testing::Test {
+  ...
+};
+//接下来，声明您将定义一个类型参数化的测试套件：
+TYPED_TEST_SUITE_P(FooTest);
+//然后，使用 TYPED_TEST_P() 定义类型参数化测试。您可以根据需要多次重复此操作：
+TYPED_TEST_P(FooTest, DoesBlah) {
+  // Inside a test, refer to TypeParam to get the type parameter.
+  TypeParam n = 0;
+  ...
+}
+TYPED_TEST_P(FooTest, HasPropertyA) { ... }
+
+//现在是棘手的部分：您需要使用 REGISTER_TYPED_TEST_SUITE_P 宏注册所有测试模式，然后才能实例化它们。宏的第一个参数是测试套件名称；其余的是这个测试套件中测试的名称：
+REGISTER_TYPED_TEST_SUITE_P(FooTest,
+                            DoesBlah, HasPropertyA);
+
+//最后，您可以自由地使用您想要的类型实例化模式。如果你把上面的代码放在一个头文件中，你可以在多个C++源文件中#include它并多次实例化它。
+using MyTypes = ::testing::Types<char, int, unsigned int>;
+INSTANTIATE_TYPED_TEST_SUITE_P(My, FooTest, MyTypes);
+
+//为了区分模式的不同实例，INSANTIATE_TYPED_TEST_SUITE_P 宏的第一个参数是将添加到实际测试套件名称的前缀。请记住为不同的实例选择唯一的前缀。在类型列表只包含一种类型的特殊情况下，您可以直接编写该类型而无需 ::testing::Types<...>，如下所示：
+INSTANTIATE_TYPED_TEST_SUITE_P(My, FooTest, int);
+您可以查看 sample6_unittest.cc 以获取完整示例。 
+```
+
+##  测试私有代码 
+
+```cpp
+	如果您更改了软件的内部实现，只要用户无法观察到更改，您的测试就不会中断。因此，根据黑盒测试原则，大多数时候您应该通过其公共接口测试您的代码。
+
+如果您仍然发现自己需要测试内部实现代码，请考虑是否有更好的设计。测试内部实现的愿望通常表明该类做得太多。考虑提取一个实现类并对其进行测试。然后在原始类中使用该实现类。
+
+如果您绝对必须测试非公共接口代码，则可以。有两种情况需要考虑：
+
+    静态函数（与静态成员函数不同！）或未命名的命名空间，以及
+    私有或受保护的类成员
+
+为了测试它们，我们使用以下特殊技术：
+
+    未命名命名空间中的静态函数和定义/声明仅在同一翻译单元中可见。要测试它们，您可以 #include 在 *_test.cc 文件中测试的整个 .cc 文件。 （#include .cc 文件不是重用代码的好方法——你不应该在生产代码中这样做！）
+
+    但是，更好的方法是将私有代码移动到 foo::internal 命名空间中，其中 foo 是您的项目通常使用的命名空间，并将私有声明放在 *-internal.h 文件中。您的生产 .cc 文件和您的测试可以包含此内部标头，但您的客户端不能。这样，您可以完全测试您的内部实现，而不会将其泄露给您的客户。
+
+    私人班级成员只能从班级内部或友元访问。要访问类的私有成员，您可以将测试装置声明为该类的友元并在您的装置中定义访问器。使用夹具的测试然后可以通过夹具中的访问器访问生产类的私有成员。请注意，即使您的夹具是您的生产类的友元，您的测试也不会自动成为它的友元，因为它们在技术上是在夹具的子类中定义的。
+
+    另一种测试私有成员的方法是将它们重构为一个实现类，然后在 *-internal.h 文件中声明。您的客户端不允许包含此标头，但您的测试可以。这被称为 Pimpl（私有实现）习语。
+
+    或者，您可以通过在类主体中添加以下行来将单个测试声明为类的友元：
+    FRIEND_TEST(TestSuiteName, TestName);
+//example 
+// foo.h
+class Foo {
+  ...
+ private:
+  FRIEND_TEST(FooTest, BarReturnsZeroOnNull);
+
+  int Bar(void* x);
+};
+
+// foo_test.cc
+...
+TEST(FooTest, BarReturnsZeroOnNull) {
+  Foo foo;
+  EXPECT_EQ(foo.Bar(NULL), 0);  // Uses Foo's private member Bar().
+}
+
+当您的类在命名空间中定义时要特别注意。如果您希望您的测试装置和测试成为您的类的友元，那么它们必须定义在完全相同的命名空间中（没有匿名或内联命名空间）。
+   例如，如果要测试的代码如下所示：
+namespace my_namespace {
+
+class Foo {
+  friend class FooTest;
+  FRIEND_TEST(FooTest, Bar);
+  FRIEND_TEST(FooTest, Baz);
+  ... definition of the class Foo ...
+};
+
+}  // namespace my_namespace
+
+你的测试代码应该是这样的：
+namespace my_namespace {
+
+class FooTest : public testing::Test {
+ protected:
+  ...
+};
+
+TEST_F(FooTest, Bar) { ... }
+TEST_F(FooTest, Baz) { ... }
+
+}  // namespace my_namespace
+
+```
+
+## “捕捉”失败 (“Catching” Failures)
+
+```cpp
+挑战在于验证您的测试实用程序是否正确报告了失败。在通过抛出异常报告失败的框架中，您可以捕获异常并对其进行断言。但是 googletest 不使用异常，那么我们如何测试一段代码是否产生了预期的失败呢？
+
+“gtest/gtest-spi.h”包含一些结构来做到这一点。 #include 这个头之后，你可以使用
+    EXPECT_FATAL_FAILURE(statement, substring);
+
+断言该语句在其消息包含给定子字符串的当前线程中生成致命（例如 ASSERT_*）失败，或使用
+    EXPECT_NONFATAL_FAILURE(statement, substring);
+
+仅检查当前线程中的失败以确定此类预期的结果。如果语句创建新线程，则这些线程中的失败也会被忽略。如果您还想捕获其他线程中的故障，请改用以下宏之一：
+      EXPECT_FATAL_FAILURE_ON_ALL_THREADS(statement, substring);
+  	  EXPECT_NONFATAL_FAILURE_ON_ALL_THREADS(statement, substring);
+
+//出于技术原因，有一些警告：
+    1. 您不能将失败消息流式传输到任一宏。
+    2. EXPECT_FATAL_FAILURE{_ON_ALL_THREADS}() 中的语句(statement)不能引用该对象的局部非静态变量或非静态成员。
+    3. EXPECT_FATAL_FAILURE{_ON_ALL_THREADS}() 中的语句(statement)不能返回值。 
+```
+
+## 以编程方式注册测试
+
+```cpp
+TEST 宏处理绝大多数用例，但很少有需要运行时注册逻辑的地方。对于这些情况，框架提供了 ::testing::RegisterTest 允许调用者动态注册任意测试。
+
+这是一个高级 API，仅在 TEST 宏不足时使用。在可能的情况下，应首选宏，因为它们避免了调用此函数的大部分复杂性。
+它提供以下签名：
+template <typename Factory>
+TestInfo* RegisterTest(const char* test_suite_name, const char* test_name,
+                       const char* type_param, const char* value_param,
+                       const char* file, int line, Factory factory);
+
+factory 参数是一个工厂可调用（可移动构造）对象或函数指针，用于创建 Test 对象的新实例。它处理调用者的所有权。可调用的签名是 Fixture*()，其中 Fixture 是测试的测试装置类。使用相同 test_suite_name 注册的所有测试必须返回相同的夹具类型。这是在运行时检查的。
+
+框架将从工厂推断出fixture 类，并为其调用SetUpTestSuite 和TearDownTestSuite。
+必须在调用 RUN_ALL_TESTS() 之前调用，否则行为未定义。
+用例示例：
+ class MyFixture : public testing::Test {
+ public:
+  // All of these optional, just like in regular macro usage.
+  static void SetUpTestSuite() { ... }
+  static void TearDownTestSuite() { ... }
+  void SetUp() override { ... }
+  void TearDown() override { ... }
+};
+
+class MyTest : public MyFixture {
+ public:
+  explicit MyTest(int data) : data_(data) {}
+  void TestBody() override { ... }
+
+ private:
+  int data_;
+};
+
+void RegisterMyTests(const std::vector<int>& values) {
+  for (int v : values) {
+    testing::RegisterTest(
+        "MyFixture", ("Test" + std::to_string(v)).c_str(), nullptr,
+        std::to_string(v).c_str(),
+        __FILE__, __LINE__,
+        // Important to use the fixture type as the return type here.
+        [=]() -> MyFixture* { return new MyTest(v); });
+  }
+}
+...
+int main(int argc, char** argv) {
+  std::vector<int> values_to_test = LoadValuesFromConfig();
+  RegisterMyTests(values_to_test);
+  ...
+  return RUN_ALL_TESTS();
+}
+
+```
+
+## 获取当前测试的名称
+
+```cpp
+有时函数可能需要知道当前运行的测试的名称。例如，您可能正在使用测试装置的 SetUp() 方法根据正在运行的测试设置黄金文件名。 TestInfo 类具有此信息。
+
+要获取当前正在运行的测试的 TestInfo 对象，请在 UnitTest 单例对象上调用 current_test_info() ：
+  // Gets information about the currently running test.
+  // Do NOT delete the returned object - it's managed by the UnitTest class.
+  const testing::TestInfo* const test_info =
+      testing::UnitTest::GetInstance()->current_test_info();
+
+  printf("We are in test %s of test suite %s.\n",
+         test_info->name(),
+         test_info->test_suite_name());
+
+如果没有测试正在运行，current_test_info() 将返回一个空指针。特别是，您无法在 SetUpTestSuite()、TearDownTestSuite()（您隐式知道测试套件名称）或从它们调用的函数中找到测试套件名称
+```
+
+## 通过处理测试事件扩展 googletest 
+
+```cpp
+googletest 提供了一个事件侦听器 API，可让您接收有关测试程序进度和测试失败的通知。您可以侦听的事件包括测试程序的开始和结束、测试套件或测试方法等。您可以使用此 API 来扩充或替换标准控制台输出、替换 XML 输出或提供完全不同的输出形式，例如 GUI 或数据库。例如，您还可以使用测试事件作为检查点来实现资源泄漏检查器。
+定义事件监听器
+
+要定义事件侦听器，您可以继承 testing::TestEventListener 或 testing::EmptyTestEventListener 前者是一个（抽象）接口，其中每个纯虚方法都可以被覆盖以处理测试事件（例如，当测试开始时， OnTestStart() 方法将被调用。）。后者提供了接​​口中所有方法的空实现，这样子类只需要覆盖它关心的方法。
+
+当一个事件被触发时，它的上下文作为参数传递给处理函数。使用以下参数类型：
+    UnitTest 反映了整个测试程序的状态，
+    TestSuite 包含有关测试套件的信息，其中可以包含一个或多个测试，
+    TestInfo 包含测试的状态，以及
+    TestPartResult 表示测试断言的结果。
+事件处理函数可以检查它接收到的参数，以找出有关事件和测试程序状态的有趣信息。
+
+下面是一个例子：
+    class MinimalistPrinter : public testing::EmptyTestEventListener {
+    // Called before a test starts.
+    void OnTestStart(const testing::TestInfo& test_info) override {
+      printf("*** Test %s.%s starting.\n",
+             test_info.test_suite_name(), test_info.name());
+    }
+
+    // Called after a failed assertion or a SUCCESS().
+    void OnTestPartResult(const testing::TestPartResult& test_part_result) override {
+      printf("%s in %s:%d\n%s\n",
+             test_part_result.failed() ? "*** Failure" : "Success",
+             test_part_result.file_name(),
+             test_part_result.line_number(),
+             test_part_result.summary());
+    }
+
+    // Called after a test ends.
+    void OnTestEnd(const testing::TestInfo& test_info) override {
+      printf("*** Test %s.%s ending.\n",
+             test_info.test_suite_name(), test_info.name());
+    }
+  };
+```
+
+## 使用事件监听器
+
+```cpp
+要使用您定义的事件侦听器，请在调用 RUN_ALL_TESTS() 之前，在 main() 函数中将它的一个实例添加到 googletest 事件侦听器列表（由类 TestEventListeners 表示 - 注意名称末尾的“s”） ：
+int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  // Gets hold of the event listener list.
+  testing::TestEventListeners& listeners =
+      testing::UnitTest::GetInstance()->listeners();
+  // Adds a listener to the end.  googletest takes the ownership.
+  listeners.Append(new MinimalistPrinter);
+  return RUN_ALL_TESTS();
+}
+
+//只有一个问题：默认的测试结果打印机仍然有效，所以它的输出会与你的极简打印机的输出混合在一起。要取消默认打印机，只需将其从事件侦听器列表中释放并删除即可。您可以通过添加一行来实现：
+  ...
+  delete listeners.Release(listeners.default_result_printer());
+  listeners.Append(new MinimalistPrinter);
+  return RUN_ALL_TESTS();
+
+现在，坐下来享受完全不同的测试输出。有关更多详细信息，请参阅 sample9_unittest.cc。
+    您可以将多个侦听器附加到列表中。当 On*Start() 或 OnTestPartResult() 事件被触发时，侦听器将按照它们在列表中出现的顺序接收它（因为新的侦听器被添加到列表的末尾，默认的文本打印机和默认的 XML 生成器将首先接收事件）。 On*End() 事件将以相反的顺序由侦听器接收。这允许稍后添加的侦听器的输出由先前添加的侦听器的输出构成。
+    
+//在侦听器中生成故障
+    在处理事件时，您可以使用引发故障的宏（EXPECT_*()、ASSERT_*()、FAIL() 等）。有一些限制：
+    1. 您不能在 OnTestPartResult() 中生成任何失败（否则会导致递归调用 OnTestPartResult()）。
+    2. 不允许处理 OnTestPartResult() 的侦听器产生任何故障。
+    3. 当您将侦听器添加到侦听器列表时，您应该将处理 OnTestPartResult() 的侦听器放在会产生故障的侦听器之前。这确保了后者产生的故障归因于前者的正确测试。
+
+有关引发故障的侦听器示例，请参见 sample10_unittest.cc。 
+```
+
+## 运行测试程序：高级选项 
+
+```cpp
+googletest 测试程序是普通的可执行文件。 构建后，您可以直接运行它们并通过以下环境变量和/或命令行标志影响它们的行为。 要使标志起作用，您的程序必须在调用 RUN_ALL_TESTS() 之前调用 ::testing::InitGoogleTest()。
+
+要查看受支持标志及其用法的列表，请使用 --help 标志运行您的测试程序。 您还可以使用 -h、-? 或 /? 简称。
+
+如果一个选项同时由环境变量和标志指定，则后者优先。
+    
+//过滤器    
+    默认情况下，googletest 程序会运行用户定义的所有测试。有时，您只想运行测试的一个子集（例如用于调试或快速验证更改）。如果您将 GTEST_FILTER 环境变量或 --gtest_filter 标志设置为过滤器字符串，googletest 将只运行其全名（以 TestSuiteName.TestName 的形式）与过滤器匹配的测试。
+    过滤器的格式是一个以“:”分隔的通配符模式列表（称为正模式），可选后跟一个“-”和另一个以“:”分隔的模式列表（称为负模式）。当且仅当它匹配任何正模式但不匹配任何负模式时，测试才匹配过滤器。
+    例如：
+    ./foo_test 没有标志，因此运行它的所有测试。
+    ./foo_test --gtest_filter=* 由于单个 match-everything * 值，还运行所有内容。
+    ./foo_test --gtest_filter=FooTest.* 运行测试套件 FooTest 中的所有内容。
+    ./foo_test --gtest_filter=*Null*:*Constructor* 运行任何全名包含 "Null" 或 "Constructor" 的测试。
+    ./foo_test --gtest_filter=-*DeathTest.* 运行所有非死亡测试。
+    ./foo_test --gtest_filter=FooTest.*-FooTest.Bar 运行测试套件 FooTest 中除 FooTest.Bar 之外的所有内容。
+    ./foo_test --gtest_filter=FooTest.*:BarTest.*-FooTest.Bar:BarTest.Foo 运行测试套件 FooTest 中除 FooTest.Bar 之外的所有内容以及测试套件 BarTest 中除 BarTest.Foo 之外的所有内容。
+        
+//第一次失败时停止测试执行
+默认情况下，googletest 程序会运行用户定义的所有测试。在某些情况下（例如迭代测试开发和执行），可能需要在第一次失败时停止测试执行（为了完整性而改善延迟）。如果设置了 GTEST_FAIL_FAST 环境变量或 --gtest_fail_fast 标志，则一旦发现第一个测试失败，测试运行器将停止执行。
+        
+//暂时禁用测试
+	如果您有一个无法立即修复的损坏测试，您可以在其名称中添加 DISABLED_ 前缀。这会将其排除在执行之外。这比注释掉代码或使用 #if 0 更好，因为禁用的测试仍然被编译（因此不会腐烂）。  
+	如果您需要禁用测试套件中的所有测试，您可以将 DISABLED_ 添加到每个测试名称的前面，或者将其添加到测试套件名称的前面。
+	例如，以下测试不会被 googletest 运行，即使它们仍然会被编译：
+// Tests that Foo does Abc.
+TEST(FooTest, DISABLED_DoesAbc) { ... }
+
+class DISABLED_BarTest : public testing::Test { ... };
+// Tests that Bar does Xyz.
+TEST_F(DISABLED_BarTest, DoesXyz) { ... }
+
+注意：此功能应仅用于暂时缓解疼痛。您仍然需要在以后修复禁用的测试。提醒一下，如果测试程序包含任何禁用的测试，googletest 将打印一个横幅警告您。
+    
+//暂时启用禁用测试
+要在测试执行中包含禁用的测试，只需使用 --gtest_also_run_disabled_tests 标志调用测试程序或将 GTEST_ALSO_RUN_DISABLED_TESTS 环境变量设置为 0 以外的值。您可以将其与 --gtest_filter 标志结合以进一步选择要运行的禁用测试.
+    
+//重复测试
+偶尔你会遇到一个测试，其结果是命中或未命中。也许它只会在 1% 的时间内失败，这使得在调试器下重现错误变得相当困难。这可能是沮丧的主要来源。
+--gtest_repeat 标志允许您在程序中多次重复所有（或选定的）测试方法。希望一个脆弱的测试最终会失败并给你一个调试的机会。以下是如何使用它：
+    $ foo_test --gtest_repeat=1000
+    重复 foo_test 1000 次，不在失败时停止。
+
+    $ foo_test --gtest_repeat=-1
+    负数意味着永远重复。
+
+    $ foo_test --gtest_repeat=1000 --gtest_break_on_failure
+    重复 foo_test 1000 次，在第一次失败时停止。这
+    在调试器下运行时特别有用：当测试失败，它将进入调试器，然后您可以检查
+    变量和堆栈。
+
+    $ foo_test --gtest_repeat=1000 --gtest_filter=FooBar.*
+    重复名称与gtest_filter匹配的测试 
+
+如果您的测试程序包含全局设置/拆卸代码，它也会在每次迭代中重复，因为其中可能存在片状。您还可以通过设置 GTEST_REPEAT 环境变量来指定重复计数。
+    
+//洗牌测试
+    您可以指定 --gtest_shuffle 标志（或将 GTEST_SHUFFLE 环境变量设置为 1）以随机顺序在程序中运行测试。这有助于揭示测试之间的不良依赖关系。
+    默认情况下，googletest 使用从当前时间计算的随机种子。因此，您每次都会收到不同的订单。控制台输出包括随机种子值，以便您以后可以重现与订单相关的测试失败。要明确指定随机种子，请使用 --gtest_random_seed=SEED 标志（或设置 GTEST_RANDOM_SEED 环境变量），其中 SEED 是 [0, 99999] 范围内的整数。种子值 0 很特殊：它告诉 googletest 执行从当前时间计算种子的默认行为。
+	如果将此与 --gtest_repeat=N 结合使用，googletest 将选择不同的随机种子并在每次迭代中重新调整测试。 
+```
+
+##  控制测试输出
+
+```cpp
+//彩色终端输出
+googletest 可以在其终端输出中使用颜色来更容易地发现重要信息：
+    
+//失败的测试
+您可以将 GTEST_COLOR 环境变量或 --gtest_color 命令行标志设置为 yes、no 或 auto（默认值）以启用颜色、禁用颜色或让 googletest 决定。当值为 auto 时，当且仅当输出到终端并且（在非 Windows 平台上）TERM 环境变量设置为 xterm 或 xterm-color 时，googletest 才会使用颜色。
+    
+//抑制测试通过
+默认情况下，googletest 为每个测试打印 1 行输出，指示它是通过还是失败。要仅显示测试失败，请使用 --gtest_brief=1 运行测试程序，或将 GTEST_BRIEF 环境变量设置为 1。
+    
+//抑制测试经过的时间
+默认情况下，googletest 打印运行每个测试所需的时间。要禁用它，请使用 --gtest_print_time=0 命令行标志运行测试程序，或将 GTEST_PRINT_TIME 环境变量设置为 0。
+    
+//抑制 UTF-8 文本输出
+在断言失败的情况下，googletest 将字符串类型的预期值和实际值打印为十六进制编码的字符串以及可读的 UTF-8 文本（如果它们包含有效的非 ASCII UTF-8 字符）。如果您想抑制 UTF-8 文本，因为例如您没有兼容 UTF-8 的输出介质，请使用 --gtest_print_utf8=0 运行测试程序或将 GTEST_PRINT_UTF8 环境变量设置为 0。
+
+//生成 XML 报告
+除了正常的文本输出之外，googletest 还可以向文件发送详细的 XML 报告。该报告包含每个测试的持续时间，因此可以帮助您识别缓慢的测试。
+    要生成 XML 报告，请将 GTEST_OUTPUT 环境变量或 --gtest_output 标志设置为字符串“xml:path_to_output_file”，这将在给定位置创建文件。您也可以只使用字符串“xml”，在这种情况下，可以在当前目录的 test_detail.xml 文件中找到输出。
+    如果您指定一个目录（例如，Linux 上的“xml:output/directory/”或 Windows 上的“xml:output\directory\”），googletest 将在该目录中创建 XML 文件，以测试可执行文件命名（例如 foo_test .xml 用于测试程序 foo_test 或 foo_test.exe）。如果文件已经存在（可能是上次运行遗留的），googletest 将选择一个不同的名称（例如 foo_test_1.xml）以避免覆盖它。
+example:
+TEST(MathTest, Addition) { ... }
+TEST(MathTest, Subtraction) { ... }
+TEST(LogicTest, NonContradiction) { ... }
+可能产生以下报告：
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="3" failures="1" errors="0" time="0.035" timestamp="2011-10-31T18:52:42" name="AllTests">
+  <testsuite name="MathTest" tests="2" failures="1" errors="0" time="0.015">
+    <testcase name="Addition" status="run" time="0.007" classname="">
+      <failure message="Value of: add(1, 1)&#x0A;  Actual: 3&#x0A;Expected: 2" type="">...</failure>
+      <failure message="Value of: add(1, -1)&#x0A;  Actual: 1&#x0A;Expected: 0" type="">...</failure>
+    </testcase>
+    <testcase name="Subtraction" status="run" time="0.005" classname="">
+    </testcase>
+  </testsuite>
+  <testsuite name="LogicTest" tests="1" failures="0" errors="0" time="0.005">
+    <testcase name="NonContradiction" status="run" time="0.005" classname="">
+    </testcase>
+  </testsuite>
+</testsuites>
+
+        
+//生成 JSON 报告
+googletest 还可以发出 JSON 报告作为 XML 的替代格式。 要生成 JSON 报告，请将 GTEST_OUTPUT 环境变量或 --gtest_output 标志设置为字符串“json:path_to_output_file”，这将在给定位置创建文件。 您也可以只使用字符串“json”，在这种情况下，可以在当前目录的 test_detail.json 文件中找到输出。
+example:
+```
+
+## 控制如何报告故障
+
+```cpp
+//检测测试过早退出
+	Google Test 为测试运行器实现了过早退出文件协议，以捕获任何类型的测试程序意外退出。启动时，Google Test 创建的文件将在所有工作完成后自动删除。然后，测试运行器可以检查此文件是否存在。如果文件仍未删除，则表示已检查的测试已提前退出。
+	仅当设置了 TEST_PREMATURE_EXIT_FILE 环境变量时才启用此功能。
+        
+//将断言失败变成断点
+	在调试器下运行测试程序时，如果调试器能够捕获断言失败并自动进入交互模式，则非常方便。 googletest 的 break-on-failure 模式支持这种行为。
+	要启用它，请将 GTEST_BREAK_ON_FAILURE 环境变量设置为 0 以外的值。或者，您可以使用 --gtest_break_on_failure 命令行标志。
+        
+//捕获测试引发的异常
+    调试测试失败，但是，你会可以由调试器处理异常，这样您可以检查调用堆栈异常时引发。要做到这一点，将GTEST_CATCH_EXCEPTIONS环境变量设置为0，或使用-gtest_catch_exceptions = 0标志时运行测试。
+```
+
+# gMock for Dummies
+
+## 什么是GMOCK
+
+```cpp
+//什么是 gMock？
+	当您编写原型或测试时，完全依赖真实对象通常是不可行或不明智的。模拟对象实现与真实对象相同的接口（因此可以作为一个对象使用），但允许您在运行时指定它将如何使用以及它应该做什么（将调用哪些方法？以何种顺序？如何调用）很多次？用什么参数？他们会返回什么？等等）。
+    
+    gMock 是一个用于创建模拟类并使用它们的库（有时我们也称它为“框架”以使其听起来很酷）。它对 C++ 的作用就像 jMock/EasyMock 对 Java 的作用（好吧，或多或少）。
+        
+//为什么 gMock？
+虽然模拟对象可以帮助您删除测试中不必要的依赖项并使其快速可靠，但在 C++ 中手动使用模拟很难：
+    有人必须实现模拟。这项工作通常乏味且容易出错。难怪人们会走很远的路来避开它。
+    那些手动编写的模拟的质量有点，呃，不可预测。您可能会看到一些非常精致的，但您也可能会看到一些被匆忙破解并具有各种临时限制的。
+    你从使用一个模拟中获得的知识不会转移到下一个。
+
+相比之下，Java 和 Python 程序员有一些很好的模拟框架（jMock、EasyMock 等），它们可以自动创建模拟。因此，嘲笑是一种经过验证的有效技术，并且在这些社区中被广泛采用。拥有正确的工具绝对会有所作为。
+        
+// gmock作用
+    gMock 旨在帮助 C++ 程序员。它的灵感来自 jMock 和 EasyMock，但在设计时考虑到了 C++ 的细节。如果以下任何问题困扰着您，那就是您的朋友：
+
+    你被一个次优的设计困住了，希望在为时已晚之前你已经完成了更多的原型设计，但是 C++ 中的原型设计绝不是“快速的”。
+    您的测试很慢，因为它们依赖太多的库或使用昂贵的资源（例如数据库）。
+    您的测试很脆弱，因为它们使用的某些资源不可靠（例如网络）。
+    您想测试您的代码如何处理失败（例如文件校验和错误），但要导致失败并不容易。
+    你需要确保你的模块以正确的方式与其他模块交互，但很难观察交互；因此，您在行动结束时诉诸于观察副作用，但这充其量只是尴尬。
+    您想“模拟”您的依赖项，只是它们还没有模拟实现；而且，坦率地说，您对其中一些手写的模拟并不感到兴奋。
+        
+//我们鼓励您使用gMock
+    gMock 作为
+    一个设计工具，因为它可以让您尽早并经常尝试您的界面设计。更多的迭代会带来更好的设计！
+    一种测试工具，用于减少测试的出站依赖关系并探测模块与其协作者之间的交互。 
+```
+
+## GMOCK入门
+
+```cpp
+//模拟海龟的案例
+让我们看一个例子。假设您正在开发一个图形程序，它依赖于类似 LOGO 的 API 进行绘图。你将如何测试它做正确的事情？好吧，您可以运行它并将屏幕与黄金屏幕快照进行比较，但让我们承认：这样的测试运行起来成本高昂且脆弱（如果您刚刚升级到具有更好抗锯齿功能的闪亮新显卡怎么办？突然之间？您必须更新所有黄金图像。）。如果你所有的测试都是这样的话，那就太痛苦了。幸运的是，您了解了依赖注入并知道正确的做法：不要让您的应用程序直接与系统 API 对话，而是将 API 包装在一个接口（例如 Turtle）中并为该接口编写代码：
+class Turtle {
+  ...
+  virtual ~Turtle() {}
+  virtual void PenUp() = 0;
+  virtual void PenDown() = 0;
+  virtual void Forward(int distance) = 0;
+  virtual void Turn(int degrees) = 0;
+  virtual void GoTo(int x, int y) = 0;
+  virtual int GetX() const = 0;
+  virtual int GetY() const = 0;
+};
+	（请注意，Turtle 的析构函数必须是虚拟的，就像您打算继承的所有类一样 - 否则当您通过基指针删除对象时，不会调用派生类的析构函数，您将得到损坏的程序状态，如内存泄漏。）
+
+	您可以使用 PenUp() 和 PenDown() 控制海龟的移动是否会留下轨迹，并使用 Forward()、Turn() 和 GoTo() 控制其移动。最后，GetX() 和 GetY() 告诉你海龟的当前位置。
+    
+    您的程序通常会使用此接口的真实实现。在测试中，您可以改用模拟实现。这使您可以轻松检查程序调用的绘图基元、参数和顺序。以这种方式编写的测试更加健壮（它们不会因为您的新机器抗锯齿的方式不同而中断），更易于阅读和维护（测试的意图在代码中表达，而不是在某些二进制图像中），并且跑得多，快得多。 
+```
+
+## 写一个GMOCK 类
+
+```cpp
+//编写模拟类
+	如果幸运的话，您需要使用的模拟已经被一些好人实现了。但是，如果您发现自己可以编写模拟课程，请放松 - gMock 将这项任务变成了一个有趣的游戏！ （嗯，差不多。）
+        
+//如何定义
+以 Turtle 界面为例，以下是您需要遵循的简单步骤：
+    从 Turtle 派生一个类 MockTurtle。
+    以 Turtle 的虚函数为例（虽然可以使用模板模拟非虚方法，但它涉及的更多）。
+    在 public: 子类的部分，写 MOCK_METHOD();
+    现在是有趣的部分：您获取函数签名，将其剪切并粘贴到宏中，然后添加两个逗号 - 一个在返回类型和名称之间，另一个在名称和参数列表之间。
+    如果您正在模拟 const 方法，请添加包含 (const) 的第四个参数（括号是必需的）。
+    由于您要覆盖虚拟方法，我们建议添加 override 关键字。对于 const 方法，第四个参数变为 (const, override)，对于非常量方法只是 (override)。这不是强制性的。
+    重复直到完成所有要模拟的虚函数。 （不用说，抽象类中的所有纯虚方法都必须被模拟或覆盖。）
+
+在这个过程之后，你应该有类似的东西：
+#include "gmock/gmock.h"  // Brings in gMock.
+class MockTurtle : public Turtle {
+ public:
+  ...
+  MOCK_METHOD(void, PenUp, (), (override));
+  MOCK_METHOD(void, PenDown, (), (override));
+  MOCK_METHOD(void, Forward, (int distance), (override));
+  MOCK_METHOD(void, Turn, (int degrees), (override));
+  MOCK_METHOD(void, GoTo, (int x, int y), (override));
+  MOCK_METHOD(int, GetX, (), (const, override));
+  MOCK_METHOD(int, GetY, (), (const, override));
+};
+您不需要在其他地方定义这些模拟方法 - MOCK_METHOD 宏将为您生成定义。 就这么简单！ 
+    
+//放在哪里
+	当你定义一个模拟类时，你需要决定把它的定义放在哪里。有些人把它放在一个_test.cc。当被模拟的界面（例如 Foo）归同一个人或团队所有时，这很好。否则，当 Foo 的所有者更改它时，您的测试可能会中断。 （你真的不能指望 Foo 的维护者修复每一个使用 Foo 的测试，对吗？）
+
+	因此，经验法则是：如果您需要模拟 Foo 并且它归其他人所有，请在 Foo 的包中定义模拟类（最好在测试子包中，以便您可以清楚地分离生产代码和测试实用程序），将它在一个 .h 和一个 cc_library 中。然后每个人都可以从他们的测试中引用它们。如果 Foo 发生更改，则只有一个 MockFoo 副本需要更改，并且只需要修复依赖于已更改方法的测试。
+
+	另一种方法是：您可以在 Foo 之上引入一个薄层 FooAdaptor 并为这个新界面编写代码。由于您拥有 FooAdaptor，您可以更轻松地吸收 Foo 中的变化。虽然这最初需要更多的工作，但仔细选择适配器接口可以使您的代码更易于编写和更具可读性（从长远来看是净胜），因为您可以选择 FooAdaptor 来比 Foo 更适合您的特定领域。 
+    
+//在测试中使用模拟
+一旦你有了一个模拟类，使用它就很容易了。典型的工作流程是：
+    从 testing 命名空间导入 gMock 名称，以便您可以不加限定地使用它们（每个文件只需执行一次）。请记住，命名空间是个好主意。
+    创建一些模拟对象。
+    指定您对它们的期望（一个方法将被调用多少次？使用什么参数？它应该做什么？等等）。
+    练习一些使用模拟的代码；或者，使用 googletest 断言检查结果。如果模拟方法的调用次数超出预期或参数错误，您将立即收到错误消息。
+    当一个 mock 被破坏时，gMock 会自动检查是否已经满足了对它的所有期望。
+
+下面是一个例子：
+#include "path/to/mock-turtle.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+using ::testing::AtLeast;                         // #1
+
+TEST(PainterTest, CanDrawSomething) {
+  MockTurtle turtle;                              // #2
+  EXPECT_CALL(turtle, PenDown())                  // #3
+      .Times(AtLeast(1));
+
+  Painter painter(&turtle);                       // #4
+
+  EXPECT_TRUE(painter.DrawCircle(0, 0, 10));      // #5
+}
+您可能已经猜到了，这个测试检查 PenDown() 至少被调用了一次。如果 Painter 对象没有调用这个方法，你的测试将会失败并显示如下消息:
+path/to/my_test.cc:119: Failure
+Actual function call count doesn't match this expectation:
+Actually: never called;
+Expected: called at least once.
+Stack trace:
+...
+    
+    重要提示：gMock 要求在调用模拟函数之前设置期望值，否则行为未定义。不要在调用 EXPECT_CALL() 和调用模拟函数之间交替，并且在将模拟传递给 API 后不要对模拟设置任何期望。
+
+	这意味着 EXPECT_CALL() 应该被解读为预期将来会发生调用，而不是已经发生调用。为什么 gMock 这样工作？好吧，当上下文（堆栈跟踪等）仍然可用时，预先指定期望允许 gMock 在它上升时立即报告违规。这使得调试更加容易。
+
+	诚然，这个测试是人为的，并没有多大作用。不使用 gMock 也可以轻松实现相同的效果。然而，正如我们很快将揭示的那样，gMock 允许您使用模拟做更多的事情。
+   
+    
+//设定期望
+	成功使用模拟对象的关键是对其设置正确的期望。如果您将期望设置得太粘性，您的测试将因无关的更改而失败。如果你把它们放得太松，虫子就会溜进来。您希望做得恰到好处，以便您的测试可以准确地捕获您打算捕获的错误类型。 gMock 为您提供了“恰到好处”的必要手段。
+//一般语法
+在 gMock 中，我们使用 EXPECT_CALL() 宏来设置模拟方法的期望值。一般语法是：
+    EXPECT_CALL(mock_object, method(matchers))
+    .Times(cardinality)
+    .WillOnce(action)
+    .WillRepeatedly(action);
+	宏有两个参数：首先是模拟对象，然后是方法及其参数。请注意，两者之间用逗号 (,) 分隔，而不是句点 (.)。 （为什么使用逗号？答案是出于技术原因必须这样做。）如果方法没有重载，也可以在没有匹配器的情况下调用宏：
+    EXPECT_CALL(mock_object, non-overloaded-method)
+    .Times(cardinality)
+    .WillOnce(action)
+    .WillRepeatedly(action);
+此语法允许测试编写者指定“使用任何参数调用”，而无需明确指定参数的数量或类型。为避免意外的歧义，此语法只能用于未重载的方法。	
+ 
+//example
+using ::testing::Return;
+...
+EXPECT_CALL(turtle, GetX())
+    .Times(5)
+    .WillOnce(Return(100))
+    .WillOnce(Return(150))
+    .WillRepeatedly(Return(200));
+调用GetX()5次， 第一次返回100，第二次返回150，后面一直返回200；
+    
+//匹配器：我们期望什么参数？
+当模拟函数接受参数时，我们可以指定我们期望的参数，例如：
+    // Expects the turtle to move forward by 100 units.
+	EXPECT_CALL(turtle, Forward(100));
+
+//_匹配任意参数
+using ::testing::_;
+...
+// Expects that the turtle jumps to somewhere on the x=50 line.
+EXPECT_CALL(turtle, GoTo(50, _));
+
+//匹配参数大于100
+using ::testing::Ge;
+...
+// Expects the turtle moves forward by at least 100.
+EXPECT_CALL(turtle, Forward(Ge(100)));
+
+//如果您不关心任何参数，而不是为每个参数指定 _，您可以省略参数列表：
+// Expects the turtle to move forward.
+EXPECT_CALL(turtle, Forward);
+// Expects the turtle to jump somewhere.
+EXPECT_CALL(turtle, GoTo);
+这适用于所有非重载方法；如果一个方法被重载，你需要通过指定参数的数量和参数的类型来帮助 gMock 解决预期的重载。
+    
+//基数：它会被调用多少次？ 
+    我们可以在 EXPECT_CALL() 之后指定的第一个子句是 Times()。我们称它的参数为基数，因为它告诉我们调用应该发生多少次。它允许我们多次重复一个期望，而无需实际编写它很多次。更重要的是，基数可以是“模糊的”，就像匹配器一样。这允许用户准确地表达测试的意图。
+    一个有趣的特例是当我们说 Times(0) 时。您可能已经猜到了 - 这意味着根本不应该使用给定的参数调用该函数，并且只要（错误地）调用该函数，gMock 就会报告 googletest 失败。
+    Times() 子句可以省略。如果您省略 Times()，gMock 将为您推断基数。规则很容易记住：
+    如果WillOnce() 和WillRepeatedly() 都不在EXPECT_CALL() 中，则推断的基数是Times(1)。
+    如果有 n 个 WillOnce() 但没有 WillRepeatedly()，其中 n >= 1，则基数为 Times(n)。
+    如果有 n 个 WillOnce() 和一个 WillRepeatedly()，其中 n >= 0，则基数为 Times(AtLeast(n))。
+    
+//还记得模拟对象并没有真正有效的实现吗？我们作为用户必须告诉它在调用方法时要做什么。这在 gMock 中很容易。
+	首先，如果模拟函数的返回类型是内置类型或指针，则该函数具有默认操作（void 函数将返回，bool 函数将返回 false，其他函数将返回 0）。此外，在 C++ 11 及更高版本中，返回类型为默认构造函数（即具有默认构造函数）的模拟函数具有返回默认构造值的默认操作。如果你什么都不说，就会使用这种行为。
+    其次，如果模拟函数没有默认操作，或者默认操作不适合您，您可以使用一系列 WillOnce() 子句和可选的 WillRepeatedly 指定每次期望匹配时要采取的操作()。例如，
+using ::testing::Return;
+...
+EXPECT_CALL(turtle, GetX())
+     .WillOnce(Return(100))
+     .WillOnce(Return(200))
+     .WillOnce(Return(300));
+说turtle.GetX() 将被精确调用三次（gMock 从我们编写的 WillOnce() 子句中推断出这一点，因为我们没有明确地编写 Times()），并将分别返回 100、200 和 300。
+    
+using ::testing::Return;
+...
+EXPECT_CALL(turtle, GetY())
+     .WillOnce(Return(100))
+     .WillOnce(Return(200))
+     .WillRepeatedly(Return(300));
+说turtle.GetY() 将至少被调用两次（gMock 知道这一点，因为我们已经编写了两个 WillOnce() 子句和一个 WillRepeatedly() 而没有明确的 Times()），将分别返回 100 和 200 前两个次，从第三次开始之后都为 300。
+    
+    当然，如果你明确地写了一个 Times()，gMock 不会尝试推断基数本身。如果您指定的数字大于 WillOnce() 子句怎么办？好吧，在所有 WillOnce() 都用完之后，gMock 每次都会为该函数执行默认操作（当然，除非您有 WillRepeatedly()）。
+    
+//除了 Return() 我们还能在 WillOnce() 里面做什么？您可以使用 ReturnRef(*variable*) 返回引用，或调用预定义的函数等。
+    
+    
+重要说明：EXPECT_CALL() 语句仅对操作子句求值一次，即使操作可能会执行多次。因此，您必须小心副作用。以下可能不会做你想要的：
+using ::testing::Return;
+...
+int n = 100;
+EXPECT_CALL(turtle, GetX())
+    .Times(4)
+    .WillRepeatedly(Return(n++));
+这个模拟函数不会连续返回 100, 101, 102, ... ，而是总是返回 100，因为 n++ 只计算一次。类似地，当执行 EXPECT_CALL() 时， Return(new Foo) 将创建一个新的 Foo 对象，并且每次都会返回相同的指针。如果您希望每次都发生副作用，则需要定义一个自定义操作，我们将在食谱中介绍该操作。
+    
+using ::testing::Return;
+...
+EXPECT_CALL(turtle, GetY())
+    .Times(4)
+    .WillOnce(Return(100));
+	显然，turtle.GetY() 预计会被调用四次。但是，如果您认为它每次都会返回 100，请三思！请记住，每次调用该函数时都会使用一个 WillOnce() 子句，然后将执行默认操作。所以正确的答案是，turtle.GetY() 第一次返回 100，但从第二次开始返回 0，因为返回 0 是 int 函数的默认操作。 
+```
+
+## 使用多重期望
+
+```cpp
+至今为止，我们只展示了如何使用单个期望。但是在现实中，你可能想指定来自不同Mock对象的Mock函数上的期望。
+
+    默认情况下，当一个Mock函数被调用时，Google Mock会通过定义顺序的逆序去查找期望，当找到一个与参数匹配的有效的期望时就停下来( 你可以把这个它想成是“老的规则覆盖新的规则“ )。如果匹配的期望不能再接受更多的调用时，你就会收到一个超出上界的失败，下面是一个例子：
+
+1 using ::testing::_;...
+2 EXPECT_CALL(turtle, Forward(_));  // #1
+3 EXPECT_CALL(turtle, Forward(10))  // #2
+4     .Times(2);
+
+如果Forward(10)被连续调用3次，第3次调用它会报出一个错误，因为最后一个匹配期望(#2)已经饱和了(Forward(10)被定义只执行两次，第三次的执行不了，Forward(10)优先匹配#2, 会覆盖#1的规则)。但是如果第3次的Forward(10)替换为Forward(20)，那它就不会报错，因数现在#1将会是匹配的期望了。
+```
+
+## 期望顺序调用
+
+```cpp
+Ordered vs Unordered Calls
+
+    默认情况下，即使是在前一个期望没有被匹配的情况下，一个期望仍然可以被匹配。换句话说，调用的匹配顺序不会按照期望指定的顺序去匹配。
+    有时，你可能想让所有的期望调用都以一个粘性的顺序来匹配，这在Google Mock中是很容易的：
+ 1 using ::testing::InSequence;...
+ 2 TEST(FooTest, DrawsLineSegment) {
+ 3   ...
+ 4   {
+ 5     InSequence dummy;
+ 6  
+ 7     EXPECT_CALL(turtle, PenDown());
+ 8     EXPECT_CALL(turtle, Forward(100));
+ 9     EXPECT_CALL(turtle, PenUp());
+10   }
+11   Foo();
+12 }
+创建InSequence的一个对象后，在这个对象作用域中的期望都会以顺序存放，并要求调用以这个顺序匹配。因为我们只是依赖这个对象的构造函数和析构函数来完成任务，所以对象的名字并不重要。
+
+( 如果你只是关心某些调用的相对顺序，而不是所有调用的顺序？可以指定一个任意的相对顺序吗？答案是...可以！如果你比较心急，你可以在CookBook中找到相关的细节。)
+```
+
+## 所有的期望是粘性的
+
+```cpp
+现在让我们做一个快速测验，看看你已经可以很好地使用这个模拟的东西。你将如何测试乌龟被要求精确到原点两次（你想忽略它收到的任何其他指令）？
+1 using ::testing::_;...
+2 EXPECT_CALL(turtle, GoTo(_, _))  // #1
+3     .Times(AnyNumber());
+4 EXPECT_CALL(turtle, GoTo(0, 0))  // #2
+5 .Times(2);
+假设turtle.GoTo(0,0)被调用了3次。在第3次，Google Mock会找到参数匹配期望#2。因为我们想要的是恰好经过原点两次，所以Google Mock会立即报告一个错误。上面的内容其实就是我们在“Using Multiple Expectations”中说过的。
+    
+    上面的例子说明了Google Mock中默认情况下期望是粘性的，即是指期望在达到它们指定的调用次数上界后仍然是有效的。这是一个很重要的规则，因为它影响着指定的意义，而且这种规则与许多别的Mock框架中是不一样的( 我们为什么会设计的不一样？因为我们认为我们的规则会使一般的用例更容易表达和理解 )。
+    
+   简单？让我看一下你是不是真懂了：下面的代码是什么意思：
+1 using ::testing::Return;
+2 ...
+3 for (int i = n; i > 0; i--) {
+4   EXPECT_CALL(turtle, GetX())
+5       .WillOnce(Return(10*i));
+6 }
+
+如果你认为turtle.GetX()会被调用n次，并依次返回10, 20, 30, ...，唉，你还是再想想吧！问题是，我们都说过了，期望是粘性的。所以第2次turtle.GetX()被调用时，最后一个EXPECT_CALL()会被匹配，所以马上会引起“超出上界”的错误。上面的代码其实没什么用途。
+    一个正确表达turtle.GetX()返回10, 20, 30,...,的方法是明确地说明期望不是粘性的。换句话说，在期望饱和之后就失效。
+using ::testing::Return;
+...
+for (int i = n; i > 0; i--) {
+  EXPECT_CALL(turtle, GetX())
+      .WillOnce(Return(10*i))
+      .RetiresOnSaturation();
+}
+
+并且，有一个更好的解决方法，在这个例子中，我们期望调用以特定顺序执行。因为顺序是一个重要的因素，我们应该用InSequence明确地表达出顺序：
+ 1 using ::testing::InSequence;
+ 2 using ::testing::Return;
+ 3 ...
+ 4 {
+ 5   InSequence s;
+ 6  
+ 7   for (int i = 1; i <= n; i++) {
+ 8     EXPECT_CALL(turtle, GetX())
+ 9         .WillOnce(Return(10*i))
+10         .RetiresOnSaturation();
+11   }
+12 }
+顺便说一句，期望可能不粘的另一种情况是当它在序列中时 - 一旦序列中的另一个期望被使用，它就会自动退出（并且永远不会用于匹配任何调用）。
+```
+
+## 无效的调用
+
+```cpp
+一个Mock对象可能有很多函数，但并不是所有的函数你都关心。比如，在一些测试中，你可能不关心GetX()和GetY()被调用多少次。
+
+    在Google Mock中，你如果不关心一个函数，很简单，你什么也不写就可以了。如果这个函数的调用发生了，你会看到测试输出一个警告，但它不会是一个失败。
+```
+
+# gMock Cookbook
+```cpp
+注意，Google Mock定义在testing命名空间中。你可以用using ::testing::Foo来让代码有更好的可读性。在本文中为了简洁起见，并不采用这种写法，但是在你自己的代码中应该用using。
+```
+## 创建一个mock类(Creating Mock Classes)
+
+```cpp
+模拟类被定义为普通类，使用 MOCK_METHOD 宏来生成模拟方法。宏获得 3 或 4 个参数：
+class MyMock {
+ public:
+  MOCK_METHOD(ReturnType, MethodName, (Args...));
+  MOCK_METHOD(ReturnType, MethodName, (Args...), (Specs...));
+};
+前3个参数分别是返回值类型，调用的函数名，以及函数名的参数；
+    第四个参数接受一个封闭的限定符列表，它会影响生成的方法：
+    const - Makes the mocked method a const method. Required if overriding a const method.
+    override - Marks the method with override. Recommended if overriding a virtual method.
+    noexcept - Marks the method with noexcept. Required if overriding a noexcept method.
+    Calltype(...) - Sets the call type for the method (e.g. to STDMETHODCALLTYPE), useful in Windows.
+    ref(...) - Marks the method with the reference qualification specified. Required if overriding a method that has reference qualifications. Eg ref(&) or ref(&&).
+
+//Dealing with unprotected commas(处理未受保护的逗号)
+class MockFoo {
+ public:
+  MOCK_METHOD(std::pair<bool, int>, GetPair, ());  // Won't compile!
+  MOCK_METHOD(bool, CheckMap, (std::map<int, double>, bool));  // Won't compile!
+};
+解决方案 1 使用括号：
+class MockFoo {
+ public:
+  MOCK_METHOD((std::pair<bool, int>), GetPair, ());
+  MOCK_METHOD(bool, CheckMap, ((std::map<int, double>), bool));
+};
+解决方案 2 - 定义别名：
+class MockFoo {
+ public:
+  using BoolAndInt = std::pair<bool, int>;
+  MOCK_METHOD(BoolAndInt, GetPair, ());
+  using MapIntDouble = std::map<int, double>;
+  MOCK_METHOD(bool, CheckMap, (MapIntDouble, bool));
+};
+
+```
+
+## mock(模拟) 公有或者私有的函数(method)
+
+```cpp
+你必须将Mock函数定义( MOCK_METHOD* )放到Mock类的public:部分中，无论被Mock的函数在基类中是public，protected，还是private。这样做是为了让ON_CALL和EXPECT_CALL可以从Mock类外引用Mock函数。( 是的，C++允许子类改变一个基类虚函数的访问权限)。比如：
+class Foo {
+ public:
+  ...
+  virtual bool Transform(Gadget* g) = 0;
+
+ protected:
+  virtual void Resume();
+
+ private:
+  virtual int GetTimeOut();
+};
+
+class MockFoo : public Foo {
+ public:
+  ...
+  MOCK_METHOD(bool, Transform, (Gadget* g), (override));
+
+  // The following must be in the public section, even though the
+  // methods are protected or private in the base class.
+  MOCK_METHOD(void, Resume, (), (override));
+  MOCK_METHOD(int, GetTimeOut, (), (override));
+};
+```
+
+## mock 重载函数
+
+```cpp
+Mock重载函数的方法也是一样的，不需要使用别的方式：
+class Foo {
+  ...
+
+  // Must be virtual as we'll inherit from Foo.
+  virtual ~Foo();
+
+  // Overloaded on the types and/or numbers of arguments.
+  virtual int Add(Element x);
+  virtual int Add(int times, Element x);
+
+  // Overloaded on the const-ness of this object.
+  virtual Bar& GetBar();
+  virtual const Bar& GetBar() const;
+};
+
+class MockFoo : public Foo {
+  ...
+  MOCK_METHOD(int, Add, (Element x), (override));
+  MOCK_METHOD(int, Add, (int times, Element x), (override));
+
+  MOCK_METHOD(Bar&, GetBar, (), (override));
+  MOCK_METHOD(const Bar&, GetBar, (), (const, override));
+};
+
+//注意：如果你并不Mock所有的重载函数，编译器会警告你基类中的一些函数被隐藏了。修正的方法是用using将它们引入域中：
+class MockFoo :publicFoo {
+ ...
+ using Foo::Add;
+ MOCK_METHOD1(Add, int(Element x));
+ // We don't want to mock int Add(int times, Element x);
+ ...
+};
+```
+
+## mock 模板
+
+```cpp
+Mock一个模板类，需要在MOCK_*宏后加上_T：
+template <typename Elem>
+class StackInterface {
+  ...
+  // Must be virtual as we'll inherit from StackInterface.
+  virtual ~StackInterface();
+
+  virtual int GetSize() const = 0;
+  virtual void Push(const Elem& x) = 0;
+};
+
+template <typename Elem>
+class MockStack : public StackInterface<Elem> {
+  ...
+  MOCK_METHOD(int, GetSize, (), (override));
+  MOCK_METHOD(void, Push, (const Elem& x), (override));
+};
+```
+
+## mock 非虚函数
+
+```cpp
+Google Mock可以Mock非虚函数用在hi-perf dependency injection(依赖注射)中。
+
+   Mock非虚函数时并不与真实的类共享一个公共的基类，你的Mock类与真实类将毫无关系，但两者所定义的函数却是一致的。Mock非虚函数与Mock虚函数的语法是一致的：
+// A simple packet stream class.  None of its members is virtual.
+class ConcretePacketStream {
+ public:
+  void AppendPacket(Packet* new_packet);
+  const Packet* GetPacket(size_t packet_number) const;
+  size_t NumberOfPackets() const;
+  ...
+};
+
+// A mock packet stream class.  It inherits from no other, but defines
+// GetPacket() and NumberOfPackets().
+class MockPacketStream {
+ public:
+  MOCK_METHOD(const Packet*, GetPacket, (size_t packet_number), (const));
+  MOCK_METHOD(size_t, NumberOfPackets, (), (const));
+  ...
+};
+
+//注意与真实类不同的是Mock类没有定义AppenPacket()，但只要测试中没有调用到这个函数，这种写法是没有问题的。
+   接下来，你需要想出一种在正式代码中使用ConcretePacketStream，在测试代码中使用MockPacketStream的方法。因为函数是非虚的，而两个类也是毫无关系的，所以你必须在编译时(而不是运行时 )决定你使用的类。
+
+   其中一种方法是模板化需要用Packet Stream的代码。具体一点，你在代码中使用一个针对packet stream模板参数。在正式代码中，你可以用ConcretePacketStream来实例化，在测试中你用MockPacketStream来实例化。下面是一个例子：
+template <class PacketStream>
+void CreateConnection(PacketStream* stream) { ... }
+
+template <class PacketStream>
+class PacketReader {
+ public:
+  void ReadPackets(PacketStream* stream, size_t packet_num);
+};
+
+//然后你可以在正式代码中使用CreateConnection<ConcretePacketStream>()和PacketReader<ConcretePacketStream>，在测试代码中使用CreateConnection<MockPacketStream>和PacketReader<MockPacketStream>：
+  MockPacketStream mock_stream;
+  EXPECT_CALL(mock_stream, ...)...;
+  .. set more expectations on mock_stream ...
+  PacketReader<MockPacketStream> reader(&mock_stream);
+  ... exercise reader ...
+```
+
+## mock非虚函数实例
+
+```cpp
+	产代码中有很多类方法是非虚的，而为了在Gtest中解除这些非必需的依赖，可以通过Gmock的mock non-virtual methods using templates方法来达到目的。
+	在此之前，需要了解一种设计模式：Dependency Injection，依赖注入。虽然这个概念始于Java和.net，但在面向对象编程中，C++代码同样应该遵循
+        
+    软件工程中的一个重要的理念就是关注分离(Separation of concern, SoC)。依赖注入不是目的，它是一系列工具和手段，最终的目的是帮助我们开发出松散耦合(loose coupled)、可维护、可测试的代码和程序。这条原则的做法是大家熟知的面向接口，或者说是面向抽象编程
+        
+    如何重构代码达到DI的目的呢，下面是一个例子:
+原代码：
+class A{
+public:
+　　int Funtion1(B& obj) {
+　　　　//do something
+　　　　std::string str = “mock non-virtual methods using templates”;
+　　　　　auto rst = obj.Function2(str);
+　　　　//do something
+　　}
+}
+
+class B{
+public:
+    int Funtion2(std::string _str){ puts(_str.c_str()); }
+}
+
+	我们对类A的方法Function1进行UT防护的时候，不关心其中类B的方法Function2的执行结果，这时候该如何对其进行mock呢（Function2是非虚的）？
+	在以上这种代码结构中，答案是无法进行mock！除非把Function2修改为virtual或者使用下面的方法：
+template <class T1 >
+class  RefactorA{
+public:
+　　int Funtion1(T1 & obj) {
+　　　　//do something
+　　　　std::string str = “mock non-virtual methods using templates”;
+　　　　auto rst = obj.Function2(str);
+　　　　//do something
+　　}
+}
+	重构之后，类RefactorA变成了类模板，在实例化的时候把依赖的类B显式的“注入”进去，这时候进行UT的时候，就可以把“注入”的类B的方法Function2 进行mock，代码如下：
+//对类B中的Function2进行mock
+class  mockB
+{
+public:
+　　MOCK_METHOD1(Funtion2, int (std::string ));
+};
+
+//对类A进行UT测试
+class RefactorA_UT : public :: testing::Test
+{
+protected:
+　　virtual void SetUp(){}
+　　virtual void TearDown(){}
+
+　　RefactorA < mockB > mockObjA;//实例化模板类
+};
+ 
+TEST_F(RefactorA_UT , Funtion1)
+{
+　　//期望类B的方法Function2被调用至少一次，返回值为100，参数为任意字符串
+　　mockB  mockObjB;
+　　EXPECT_CALL(mockObjB, Funtion2 (_))
+　　.Times(AtLeast(1))
+　　.WillOnce(Return(100));
+
+　　auto  rst  =  mockObjA.Function1( mockObjB );//注意这里传入的是mock出来的对象 
+
+　　EXPECT_TRUE( rst );
+}
+	把类B的方法Function2 mock之后，UT的重点就可以放在对Function1的其它分支上了。
+//重点：将类A改写为类模板之后，在生产代码中，需要使用真正的类B对象来进行模板类的实例化，而在测试代码中，则需要使用mock出来的类B对象进行模板类的实例化。它们之间的无关的，这与mock接口类的虚函数有着本质的区别。
+```
+
+## mock自由函数
+
+```cpp
+可以使用Google Mock来Mock一个自由函数(比如，普通C风格函数或是静态函数 )。但你需要一个接口(抽象类 )重写你的代码。
+   Mock并不直接调用自由函数(暂且称之为OpenFile )，而是为它引入一个接口，并需要针对这个接口实现对函数对自由函数的调用：
+class FileInterface {
+ public:
+  ...
+  virtual bool Open(const char* path, const char* mode) = 0;
+};
+
+class File : public FileInterface {
+ public:
+  ...
+  bool Open(const char* path, const char* mode) override {
+     return OpenFile(path, mode);
+  }
+};
+	你的代码可以通过FileInterface打开一个文件，现在函数更容易被Mock。
+	这看起来太麻烦了，但在现实中你通常可以将多个相关的函数放到一个接口中，所以为每个函数定义一个接口这种额外工作会少很多。
+```
+
+## Nice Mocks and Strict Mocks
+
+```cpp
+如果一个没有指定EXPECT_CALL的Mock函数被调用了，Google Mock会打印一个”uninteresting call”警告。这样做的合理性如下：
+    1. 测试写完之后，可能有新的函数加入到接口中。而我们不能仅因为一个测试它不知道某个函数要被调用就失败。
+	2 .这种情况也可能意味着测试中有bug，所以Google Mock也不能什么都不提示。如果用户认为这些调用是无关的，它可以加入一个EXPECT_CALL来消除警告。
+    
+//有时你可能想消除所有的”uninteresting call”警告，但有时你可能想做刚好相反的事，即认为所有的”uninteresting call”都是错误。Google Mock能让你在Mock对象这个级别上选择你的决定。
+TEST(...) {
+ MockFoo mock_foo;
+ EXPECT_CALL(mock_foo, DoThis());
+ ... code that uses mock_foo ...
+}
+
+//如果mock_foo中一个不是DoThis的函数被调用了，Google Mock会给出一个警告，但是你用NiceMock<MockFoo>重写你的测试，警告会消失，你会得到一个更清爽的输出：
+using ::testing::NiceMock;
+TEST(...) {
+ NiceMock<MockFoo> mock_foo;
+ EXPECT_CALL(mock_foo, DoThis());
+ ... code that uses mock_foo ...
+}
+NiceMock是MockFoo的一个子类，所以它在任何接受MockFoo类型的地方使用。
+   在MockFoo的构造函数是有参数的时候也是可以用的，因为NiceMock<MockFoo>“继承”了MockFoo的构造函数。
+    
+//StickMock的用法也是相似的，只是它的目的是让所有“uninteresting call”失败：
+using ::testing::StrictMock;
+TEST(...) {
+  StrictMock<MockFoo> mock_foo;
+  EXPECT_CALL(mock_foo, DoThis());
+  ... code that uses mock_foo ...
+
+  // The test will fail if a method of mock_foo other than DoThis()
+  // is called.
+}
+
+//但是有一些警告（遗憾的是它们是 C++ 限制的副作用）：
+    1. NiceMock<MockFoo> 和 StrictMock<MockFoo> 仅适用于直接在 MockFoo 类中使用 MOCK_METHOD 宏定义的模拟方法。如果在 MockFoo 的基类中定义了模拟方法，则“nice”或“strict”修饰符可能不会影响它，具体取决于编译器。特别是，不支持嵌套 NiceMock 和 StrictMock（例如 NiceMock<StrictMock<MockFoo> >）。
+    2 .如果 MockFoo 的析构函数不是虚拟的，那么 NiceMock<MockFoo> 和 StrictMock<MockFoo> 可能无法正常工作。我们想解决这个问题，但它需要清理现有的测试。
+        
+最后，你必须在使用这个特性时特别小心，因为你所做的这个决定会应用到Mock类未来所有的改动上。如果你所Mock的接口做了一个重要的改变，它会让你的测试(如果你用StrictMock )失败或是在没有警告提示的情况下让bug溜过(如果你使用NiceMock )。所以，应该显式地调用EXPECT_CALL来指定mock的行为，仅在最后将Mock对象换为NiceMock或是StrictMock的。
+```
+
+## 在不破坏现有代码的情况下简化接口 
+
+```cpp
+有时候一个函数有相当长的参数列表，那Mock的时候是相当无趣的，比如：
+ class LogSink {
+ public:
+  ...
+  virtual void send(LogSeverity severity, const char* full_filename,
+                    const char* base_filename, int line,
+                    const struct tm* tm_time,
+                    const char* message, size_t message_len) = 0;
+};
+这个函数的参数列表很长且难用(这么说吧，message参数甚至都不是以’\0’结尾的 )。如果我们执意要Mock它，那结果必是不雅的。然而如果我们试着简化这个接口，又需要将所有使用这个接口的代码全部改了，这通常是不可行的。
+
+技巧就是在Mock类中修改这个函数：
+class ScopedMockLog : public LogSink {
+ public:
+  ...
+  void send(LogSeverity severity, const char* full_filename,
+                    const char* base_filename, int line, const tm* tm_time,
+                    const char* message, size_t message_len) override {
+    // We are only interested in the log severity, full file name, and
+    // log message.
+    Log(severity, full_filename, std::string(message, message_len));
+  }
+
+  // Implements the mock method:
+  //
+  //   void Log(LogSeverity severity,
+  //            const string& file_path,
+  //            const string& message);
+  MOCK_METHOD(void, Log,
+              (LogSeverity severity, const string& file_path,
+               const string& message));
+};
+通过定义一个新有较少参数的Mock函数，我们让Mock类更易用。
+    
+//此技术还可用于使重载方法更易于模拟。 例如，当使用重载来实现默认参数时：
+ class MockTurtleFactory : public TurtleFactory {
+ public:
+  Turtle* MakeTurtle(int length, int weight) override { ... }
+  Turtle* MakeTurtle(int length, int weight, int speed) override { ... }
+
+  // the above methods delegate to this one:
+  MOCK_METHOD(Turtle*, DoMakeTurtle, ());
+};
+这允许不关心调用了哪个重载的测试来避免指定参数匹配器：
+    ON_CALL(factory, DoMakeTurtle)
+    .WillByDefault(Return(MakeMockTurtle()));
+```
+
+##  Alternative to Mocking Concrete Classes
+```cpp
+	你经常会发现你正在用一些没有针对接口实现的类。你为了可以用这种类(且称为Concrete类 )来测试自己的代码，你可能会试着将Concrete的函数变为虚函数，然后再去Mock它。
+
+   请不要这样做。
+
+   将非虚函数改为虚函数是一个重大决定。这样做之后，子类会改变父类的行为。这样就会更难保持类的不变性，而从降低了你对类的控制力。你只应在一个合理的理由下将非虚函数变为虚函数。
+
+//直接Mock具体的类会产生类和测试的高度耦合，任何对类的小的改动都会让你测试失效，这会让你陷入维护测试的痛苦中。
+   为了避免这种痛苦，许多程序员开始了“针对接口”的实践：并不直接调用Concrete类，而是定义一个接口去调用Concrete类。然后你在Concrete类之上实现这个接口，即配接器。
+        
+//这种技术可能会带来一些负担：
+1. 你要为虚函数的调用买单(通常不是问题 )
+2. 程序员需要掌握更多的抽象
+3 .但是，它同时也能巨大的好处，当然也有更好的可测性：
+4. Concrete的API也许并不是很适合你的问题领域，因为你可能不是这个API唯一的调用方。通过设计你自己的接口，你有一个将这个类修改成自己所需的类的机会，你可加入一些特定功能，重命名接口函数，等等，你可以做的不是只是减少几个自己不使用的API。这可以让你自己以更自然的方式实现你的代码，因为它有更好的可读性，更好的可维护性，你也会有更高的编程效率。
+5. 如果Concrete的实现改变了，你不需要重写与改动相关的所有测试。相反你可以将改动在你自己的接口中隐藏，使你的调用代码和测试与Concrete改动绝缘。
+6. 有些人会担心如果每个人都在实践这个技术，将会产生大量的重复代码。这个担心是可以理解的。但是，有两个理由可以证明这种情况可能不会发生。
+7. 不同的工程可能会以不同的方式使用Concrete，所以最适合每个工程的接口是不同的。所以每个工程都有在Concrete之上的自己的领域相关的接口，这些接口是各不相同的。
+8. 如果有很多的工程用相同的接口，它们可以共用一个接口，就像它们共用Concrete一样。你可以在Concrete类的旁边提交接口和配接器的代码(也许是在一个contrib子目录中 )并让许多工程使用它。
+
+	你需要仔细衡量针对你特定问题这种做法的优缺点，但我可以向你保证的是：Java世界的人已经实践这种方法很久了，并且它已经被证明在很广泛的领域中是一种有效的技术。
+
+        
+//Delegating Calls to a Fake
+有时你已经有一个对某一接口的Fake实现了。比如：
+class Foo {
+ public:
+  virtual ~Foo() {}
+  virtual char DoThis(int n) = 0;
+  virtual void DoThat(const char* s, int* p) = 0;
+};
+
+class FakeFoo : public Foo {
+ public:
+  char DoThis(int n) override {
+    return (n > 0) ? '+' :
+           (n < 0) ? '-' : '0';
+  }
+
+  void DoThat(const char* s, int* p) override {
+    *p = strlen(s);
+  }
+};
+	现在你想要Mock这个接口，比如你想在它上面设置期望。但是你还想用FakeFoo作为Mock类函数的默认行为，当然你可以选择将代码复制到Mock对象里，但是这会有很大的工作量。
+   当你用Google Mock来定义Mock类，你可以代理对象的默认行为给你已经有的Fake类，用下面的方法：
+        
+class MockFoo : public Foo {
+ public:
+  // Normal mock method definitions using gMock.
+  MOCK_METHOD(char, DoThis, (int n), (override));
+  MOCK_METHOD(void, DoThat, (const char* s, int* p), (override));
+
+  // Delegates the default actions of the methods to a FakeFoo object.
+  // This must be called *before* the custom ON_CALL() statements.
+  void DelegateToFake() {
+    ON_CALL(*this, DoThis).WillByDefault([this](int n) {
+      return fake_.DoThis(n);
+    });
+    ON_CALL(*this, DoThat).WillByDefault([this](const char* s, int* p) {
+      fake_.DoThat(s, p);
+    });
+  }
+
+ private:
+  FakeFoo fake_;  // Keeps an instance of the fake in the mock.
+};
+
+或：
+using ::testing::_;
+using ::testing::Invoke;
+class MockFoo :public Foo {
+ public:
+ // Normal mock method definitions using Google Mock.
+ MOCK_METHOD1(DoThis, char(int n));
+ MOCK_METHOD2(DoThat, void(constchar* s,int* p));
+
+ // Delegates the default actions of the methods to a FakeFoo object.
+ // This must be called *before* the custom ON_CALL() statements.
+ void DelegateToFake() {
+   ON_CALL(*this, DoThis(_))
+       .WillByDefault(Invoke(&fake_, &FakeFoo::DoThis));
+   ON_CALL(*this, DoThat(_, _))
+       .WillByDefault(Invoke(&fake_, &FakeFoo::DoThat));
+ }
+ private:
+ FakeFoofake_; // Keeps an instance of the fake in the mock.
+};
+
+	你现在可以像以前一样在你的测试中使用MockFoo。只是你要记得如果你没有明确地设置ON_CALL或是EXPECT_CALL()的行为，那Fake函数就会被调用：
+using ::testing::_;
+TEST(AbcTest, Xyz) {
+  MockFoo foo;
+
+  foo.DelegateToFake();  // Enables the fake for delegation.
+
+  // Put your ON_CALL(foo, ...)s here, if any.
+
+  // No action specified, meaning to use the default action.
+  EXPECT_CALL(foo, DoThis(5));
+  EXPECT_CALL(foo, DoThat(_, _));
+
+  int n = 0;
+  EXPECT_EQ('+', foo.DoThis(5));  // FakeFoo::DoThis() is invoked.
+  foo.DoThat("Hi", &n);  // FakeFoo::DoThat() is invoked.
+  EXPECT_EQ(2, n);
+}
+
+tip:
+1. 如果你不想用FakeFoo中的函数，你仍然可以通过在ON_CALL或是在EXPECT_CALL中用.WillOnce() / .WillRepeated()覆盖默认行为。
+2. 在DelegateToFake()中，你只需要代理那些你要用的函数的Fake实现。
+3. 这里所讲的技术对重载函数也是适用的，但你需要告诉编译器你是指重载函数中的哪一个。消除一个Mock函数的歧义(即你在ON_CALL中指定的 )，参见“Selecting Between Overloaded Functions”一节，消除一个Fake函数的歧义(即在Invoke中的 )，使用static_cast来指定函数的类型。
+4. 将一个Mock和一个Fake搅在一起通常是某种错误的信号。也许你还没有习惯基于交互方式的测试。或是你的接口融合了过多的角色，应该把这个接口分开。所以别滥用这个技术。我们建议这仅应该用做你重构你代码时的中间步骤。
+
+	再思考一个Mock和一个Fake混在一起的问题，这里有一个例子来说明为什么这是一个错误信号：假设你有一个System类，它实现了一些低层的系统操作。具体一些，它处理文件操作和I/O操作。假设你想测试你的代码是如何使用System来进行I/O操作，你只是想让文件操作工作正常就可以了。如果你想要Mock整个System类，你就必须提供一个关于文件操作的Fake实现，这表明System拥有了太多的角色。
+
+相反，你可以定义一个FileOps和一个IOOps接口来拆分System的功能。然后你可以Mock IOOps而不用Mock FileOps。
+```
+
+## Delegating Calls to a Real Object
+
+```cpp
+    当使用测试doubles(替身的意思 mocks, fakes, stubs等等 )时，有时它们的行为与真实对象的行为不一样。这种差别可能是有意为之(比如模拟一个错误，假设你的代码中有错误处理逻辑 )或是无意的。如果你的Mock与真实对象的差别是错误造成的，你可能会得到能通过测试，却在正式代码中失败的代码。
+
+   你可以使用delegating-to-real技术来保证你的Mock与真实对象有着相同的行为，并且拥有验证调用的能力。这个技术与delegating-to-fake技术很相似，区别在于我们使用真实对象而不是一个Fake。下面是一个例子：
+using ::testing::_;
+using ::testing::AtLeast;
+using ::testing::Invoke;
+
+class MockFoo :publicFoo {
+ public:
+ MockFoo() {
+   // By default, all calls are delegated to the real object.
+   ON_CALL(*this, DoThis())
+       .WillByDefault(Invoke(&real_, &Foo::DoThis));
+   ON_CALL(*this, DoThat(_))
+       .WillByDefault(Invoke(&real_, &Foo::DoThat));
+   ...
+ }
+
+ MOCK_METHOD0(DoThis, ...);
+ MOCK_METHOD1(DoThat, ...);
+ ...
+ private:
+ Foo real_;
+};
+
+...
+ MockFoo mock;
+ EXPECT_CALL(mock, DoThis())
+     .Times(3);
+ EXPECT_CALL(mock, DoThat("Hi"))
+     .Times(AtLeast(1));
+ ... use mock in test ...
+     
+   用上面的代码，Google Mock会验证你的代码是否做了正确的调用(有着正确的参数，以正确的顺序，有着正确的调用次数 )，并且真实的对象会处理这些调用(所以行为将会和正式代码中表现一致 )。这会让你在两个世界都表现出色。  
+```
+
+## 将调用委托给父类 (Delegating Calls to a Parent Class)
+
+```cpp
+  理想中，你应该针接口编程，并接口的函数都是虚函数。现实中，有时候你需要Mock一个非纯虚函数(比如，它已经有了实现 )。比如：
+class Foo {
+ public:
+  virtual ~Foo();
+
+  virtual void Pure(int n) = 0;
+  virtual int Concrete(const char* str) { ... }
+};
+
+class MockFoo : public Foo {
+ public:
+  // Mocking a pure method.
+  MOCK_METHOD(void, Pure, (int n), (override));
+  // Mocking a concrete method.  Foo::Concrete() is shadowed.
+  MOCK_METHOD(int, Concrete, (const char* str), (override));
+};
+
+	有时你想调用Foo::Concrete()而不是MockFoo::Concrete()。也许你想将它做为Stub行为的一部分，或是也许你的测试根本不需要Mock Concrete()  (当你不需要Mock一个新的Mock类的任何一个函数时候，而定义一个新的Mock类时，将会是出奇的痛苦)。
+   解决这个问题的技巧就是在你的Mock类中留下一个后门，可以通过它去访问基类中的真实函数：
+ class MockFoo :publicFoo {
+  public:
+   // Mocking a pure method.
+   MOCK_METHOD1(Pure, void(int n));
+   // Mocking a concrete method. Foo::Concrete() is shadowed.
+   MOCK_METHOD1(Concrete, int(constchar* str));
+   // Use this to call Concrete() defined in Foo.
+   intFooConcrete(constchar* str) {return Foo::Concrete(str); }
+ };
+
+现在你可以在一个动作中调用Foo::Concrete()：
+ using ::testing::_;
+ using ::testing::Invoke;
+ ...
+   EXPECT_CALL(foo, Concrete(_))
+       .WillOnce(Invoke(&foo, &MockFoo::FooConcrete));
+   
+或是告诉Mock对象你不想MockConcrete()：
+using ::testing::_;
+using ::testing::Invoke;
+ ...
+   ON_CALL(foo, Concrete(_))
+       .WillByDefault(Invoke(&foo, &MockFoo::FooConcrete));
+
+   ( 为什么我们不写Invoke(&foo, &Foo::Concrete)？如果你这样做，MockFoo::Concrete会被调用(从而导致无穷递归)，因为Foo::Concrete()是虚函数。这就是C++的工作方式 )。
+```
+
+## 匹配器(match)
+
+> 使用简单的匹配器
+
+```cpp
+using ::testing::NotNull;
+using ::testing::Return;
+...
+  EXPECT_CALL(foo, DoThis(Ge(5)))  // The argument must be >= 5.
+      .WillOnce(Return('a'));
+  EXPECT_CALL(foo, DoThat("Hello", NotNull()));
+      // The second argument must not be NULL.
+
+```
+
