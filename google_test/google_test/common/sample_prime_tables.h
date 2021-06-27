@@ -83,52 +83,7 @@ private:
     bool* const is_prime;
     void operator=(const PreCalculatedPrimeTable& rhs);
 };
-// class PreCalculatedPrimeTable : public PrimeTable {
-//  public:
-//   // 'max' specifies the maximum number the prime table holds.
-//   explicit PreCalculatedPrimeTable(int max)
-//       : is_prime_size_(max + 1), is_prime_(new bool[max + 1]) {
-//     CalculatePrimesUpTo(max);
-//   }
-//   ~PreCalculatedPrimeTable() override { delete[] is_prime_; }
 
-//   bool IsPrime(int n) const override {
-//     return 0 <= n && n < is_prime_size_ && is_prime_[n];
-//   }
-
-//   int GetNextPrime(int p) const override {
-//     for (int n = p + 1; n < is_prime_size_; n++) {
-//       if (is_prime_[n]) return n;
-//     }
-
-//     return -1;
-//   }
-
-//  private:
-//   void CalculatePrimesUpTo(int max) {
-//     ::std::fill(is_prime_, is_prime_ + is_prime_size_, true);
-//     is_prime_[0] = is_prime_[1] = false;
-
-//     // Checks every candidate for prime number (we know that 2 is the only even
-//     // prime).
-//     for (int i = 2; i*i <= max; i += i%2+1) {
-//       if (!is_prime_[i]) continue;
-
-//       // Marks all multiples of i (except i itself) as non-prime.
-//       // We are starting here from i-th multiplier, because all smaller
-//       // complex numbers were already marked.
-//       for (int j = i*i; j <= max; j += i) {
-//         is_prime_[j] = false;
-//       }
-//     }
-//   }
-
-//   const int is_prime_size_;
-//   bool* const is_prime_;
-
-//   // Disables compiler warning "assignment operator could not be generated."
-//   void operator=(const PreCalculatedPrimeTable& rhs);
-// };
 
 
 
