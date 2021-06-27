@@ -4,7 +4,8 @@ project(GoogleTest)
 # GoogleTest requires at least C++11
 set(CMAKE_CXX_STANDARD 11)
 
-file(GLOB fileList "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc")
+file(GLOB fileList "${CMAKE_CURRENT_SOURCE_DIR}/src/gtest/*.cc"
+]                  "${CMAKE_CURRENT_SOURCE_DIR}/src/gmock/*.cc")
 
 include_directories(include)
 include_directories(common)

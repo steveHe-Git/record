@@ -1,7 +1,11 @@
+/*
+ * 使用gmock  mock 虚函数的 example
+*/
+
 #if 0
 #include <iostream>
 #include <string>
-#include "gtest/gtest.h"
+//#include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
 using namespace std;
@@ -52,7 +56,7 @@ struct tetsABC
 {
     /* data */
     bool dummlogin(string a, string b){
-        cout << "Dummy login gets call" <<endl; return true;
+        cout << "Dummy login gets call " <<a <<" "<< b<<endl; return true;
     }
 };
 
@@ -105,7 +109,7 @@ TEST(MyDataTest, LoginInvokeWithoutArgs) {
 
 int main (int argc, char**argv) {
     testing::InitGoogleMock(&argc, argv);
-    testing::InitGoogleTest(&argc, argv);
+    //testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
