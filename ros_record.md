@@ -271,3 +271,203 @@ DESTINATION	${CATKIN_PACKAGE_SHARE_DESTINATION}
 FILES_MATCHING	PATTERN	"*.png"	PATTERN	"*.svg")
 ```
 
+## packag.xml
+
+```cpp
+	pacakge.xml包含了package的名称、版本号、内容描述、维护人员、软件许可、编译构建工具、编译依赖、运行依赖等信息。实际上rospack find
+、rosdep等命令之所以能快速定位和分析出package的依赖项信息,就
+是直接读取了每一个pacakge中的package.xml文件。它为用户提供了快速了解一个pacakge的渠道。
+```
+
+## packag.xml 写法
+
+```cpp
+## 老版本
+<pacakge>          根标记文件
+<name>             包名
+<version>          版本号
+<description>      内容描述
+<maintainer>       维护者
+<license>          软件许可证
+<buildtool_depend> 编译构建工具,通常为catkin
+<build_depend>     编译依赖项
+<run_depend>       运行依赖项
+    说明： 其中1-6为必备标签,1是根标签,嵌套了其余的所有标签,2-6为包			的各种属性,7-9为编译相关信息。
+    
+## 新版本
+<pacakge>             根标记文件
+<name>                包名
+<version>             版本号
+<description>         内容描述
+<maintainer>          维护者
+<license>             软件许可证
+<buildtool_depend>    编译构建工具,通常为catkin
+<depend>              指定依赖项为编译、导出、运行需要的依赖,最常用
+<build_depend>        编译依赖项
+<build_export_depend> 导出依赖项
+<exec_depend>         运行依赖项
+<test_depend>         测试用例依赖项
+<doc_depend>          文档依赖项    
+    
+##example old
+<?xml version="1.0"?> <!--本示例为老版本的pacakge.xml-->
+<package> <!--pacakge为根标签,写在最外面-->
+    <name>turtlesim</name>
+    <version>0.8.1</version>
+    <description>
+    turtlesim is a tool made for teaching ROS and ROS packages.
+    </description>
+    <maintainer email="dthomas@osrfoundation.org">Dirk Thomas</maintainer>
+    <license>BSD</license>
+    <url type="website">http://www.ros.org/wiki/turtlesim</url>
+    <url type="bugtracker">https://github.com/ros/ros_tutorials/issues</url>
+    <url type="repository">https://github.com/ros/ros_tutorials</url>
+    <author>Josh Faust</author>
+    <!--编译工具为catkin-->
+    <buildtool_depend>catkin</buildtool_depend>
+    <!--编译时需要依赖以下包-->
+    <build_depend>geometry_msgs</build_depend>
+    <build_depend>qtbase5-dev</build_depend>
+    <build_depend>message_generation</build_depend>
+    <build_depend>qt5-qmake</build_depend>
+    <build_depend>rosconsole</build_depend>
+    <build_depend>roscpp</build_depend>
+    <build_depend>roscpp_serialization</build_depend>
+    <build_depend>roslib</build_depend>
+    <build_depend>rostime</build_depend>
+    <build_depend>std_msgs</build_depend>
+    <build_depend>std_srvs</build_depend>
+    <!--运行时需要依赖以下包-->
+    <run_depend>geometry_msgs</run_depend>
+    <run_depend>libqt5-core</run_depend>
+    <run_depend>libqt5-gui</run_depend>
+    <run_depend>message_runtime</run_depend>
+    <run_depend>rosconsole</run_depend>
+    <run_depend>roscpp</run_depend>
+    <run_depend>roscpp_serialization</run_depend>
+    <run_depend>roslib</run_depend>
+    <run_depend>rostime</run_depend>
+    <run_depend>std_msgs</run_depend>
+    <run_depend>std_srvs</run_depend>
+</package>
+        
+        
+## example new
+<?xml version="1.0"?>
+    <package format="2">
+    <!--在声明pacakge时指定format2,为新版格式-->
+    <name>turtlesim</name>
+    <version>0.8.1</version>
+    <description>
+    turtlesim is a tool made for teaching ROS and ROS packages.
+    </description>
+    <maintainer email="dthomas@osrfoundation.org">Dirk Thomas</maintainer>
+    <license>BSD</license>
+    <url type="website">http://www.ros.org/wiki/turtlesim</url>
+    <url type="bugtracker">https://github.com/ros/ros_tutorials/issues</url>
+    <url type="repository">https://github.com/ros/ros_tutorials</url>
+    <author>Josh Faust</author>
+    <!--编译工具为catkin-->
+    <buildtool_depend>catkin</buildtool_depend>
+    <!--用depend来整合build_depend和run_depend-->
+    <depend>geometry_msgs</depend>
+    <depend>rosconsole</depend>
+    <depend>roscpp</depend>
+    <depend>roscpp_serialization</depend>
+    <depend>roslib</depend>
+    <depend>rostime</depend>
+    <depend>std_msgs</depend>
+    <depend>std_srvs</depend>
+    <!--build_depend标签未变-->
+    <build_depend>qtbase5-dev</build_depend>
+    <build_depend>message_generation</build_depend>
+    <build_depend>qt5-qmake</build_depend>
+    <!--run_depend要改为exec_depend-->
+    <exec_depend>libqt5-core</exec_depend>
+    <exec_depend>libqt5-gui</exec_depend>
+    <exec_depend>message_runtime</exec_depend>
+</package>
+```
+
+## Metapackage(元包)
+
+```cpp
+	Metapackage它指的是将多个功能接近、甚至相互依赖的软件包的放到一个集合中去,把一些相近的功能模块、软件包放到一起;
+
+Metapacakge名称           描述                           链接
+navigation               导航相关的功能包集                https://github.com/ros-planning/navigation
+moveit                   运动规划相关的(主要是机械臂)功能包集 https://github.com/ros-planning/moveit
+image_pipeline           图像获取、处理相关的功能包集        https://github.com/ros-perception/image_common
+vision_opencv            ROS与OpenCV交互的功能包集         https://github.com/ros-perception/vision_opencv
+turtlebot                Turtlebot机器人相关的功能包集      https://github.com/turtlebot/turtlebot
+pr2_robot                pr2机器人驱动功能包集              https://github.com/PR2/pr2_robo
+ ...                        ...                          ...
+     
+以navigation metapackage(官方介绍里仍然沿用stack的叫法)为例,它包括了以下软件包:
+包名                      功能
+navigation               Metapacakge,依赖以下所有pacakge
+amcl                     定位
+fake_localization        定位
+map_server               提供地图
+move_base                路径规划节点
+nav_core                 路径规划的接口类
+base_local_planner       局部规划
+dwa_local_planner        局部规划
+    ...                   ...
+```
+
+## Metapackage 写法
+
+```cpp
+	我们以ROS-Academy-for-beginners为例介绍meteapckage的写法,在教学包内,有一个ros-academy-for-beginners软件包,该包即为一个metapacakge,其中有且仅有两个文件:pacakge.xml和CMakeLists.txt
+        
+CMakeLists.txt写法如下:
+    cmake_minimum_required(VERSION 2.8.3)
+    project(ros_academy_for_beginners)
+    find_package(catkin REQUIRED)
+    catkin_metapackage() #声明本软件包是一个metapacakge
+        
+pacakge.xml写法如下:
+<package>
+    <name>ros_academy_for_beginners</name>
+    <version>17.12.4</version>
+    <description>
+    --------------------------------------------------------------------------
+    A ROS tutorial for beginner level learners. This metapacakge includes some
+    demos of topic, service, parameter server, tf, urdf, navigation, SLAM...
+    It tries to explain the basic concepts and usages of ROS.
+    --------------------------------------------------------------------------
+    </description>
+    <maintainer email="chaichangkun@163.com">Chai Changkun</maintainer>
+    <author>Chai Changkun</author>
+    <license>BSD</license>
+    <url>http://http://www.droid.ac.cn</url>
+    <buildtool_depend>catkin</buildtool_depend>
+        
+    <run_depend>navigation_sim_demo</run_depend><!--注意这里的run_depend标签,将其他软件包都设为依赖项-->
+    <run_depend>param_demo</run_depend>
+    <run_depend>robot_sim_demo</run_depend>
+    <run_depend>service_demo</run_depend>
+    <run_depend>slam_sim_demo</run_depend>
+    <run_depend>tf_demo</run_depend>
+    <run_depend>topic_demo</run_depend>
+        
+    <export>
+        <!--这里需要有export和metapacakge标签,注意这种固定写法-->
+        <metapackage/>
+    </export>
+</package>
+        
+metapacakge中的以上两个文件和普通pacakge不同点是:
+	。CMakeLists.txt:加入了catkin_metapackage()宏,指定本软件包为一个metapacakge。
+    。package.xml:标签将所有软件包列为依赖项,标签中添加标签声明。
+metapacakge在我们实际开发一个大工程时可能有用
+```
+
+## 其他常见的文件类型
+
+```cpp
+1. lanuch文件
+    
+```
+
