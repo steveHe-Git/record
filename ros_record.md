@@ -2108,6 +2108,118 @@ base_link基础上,再构建左轮,右轮	和雷达	link.最后不同的link之�
     </robot>   
         
 4. 显示URFD模型
-    
+    想要在rviz中显示出我们制作好的小车的URDF模型,可以写一个launch文件,参考如下:
+<launch>
+    <arg name="model" default="(find tf_demo)/urdf/mycar.urdf">
+    <param name="robot_description" command="$(find xacro)/xacro.py $(arg model)" />
+    <param name="use_gui" value="false" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find tf_demo/urdf/mycar.rviz)" output="screen" />
+</launch>
+    除了launch文件中的前3句,导入我们制作小车的URDF模型外,还需要添加joint_state_publisher和robot_state_publisjer这两个节点
 ```
+
+## xacro模型
+
+```cpp
+	什么是Xacro? 我们可以把它理解成为针对URDF的扩展性和配置性而设计的宏语言(macro language)。有了Xacro,我们就可以像编程一样来写URDF文件。XACRO格式提供了一些更高级的方式来组织编辑机器人描述. 主要提供了三种方式来使得整个描述文件变得简单。
+        
+1. Constants
+Usage:
+<xacro:property name="WIDTH" value="2.0"/>
+    
+2. Macros
+Usage:
+<xacro:macro name="default_origin">
+<origin xyz="0 0 0" rpy="0 0 0"/>
+</xacro:macro>
+<xacro:default_origin />
+    
+3. Include
+	很多模型都是已宏的形式进行定义, 并以最小集团分成很多个文件. 而最终的机器人描述就变得非常简单了. 下面摘录一个ur5的描述文件. 从中可以看出来xacro的强大优势. 在最后的示例中我们还能够看到, urdf文件也是能够直接导入进来的.
+Usage:
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ur5" >
+<!-- common stuff -->
+    <xacro:include filename="$(find ur_description)/urdf/ur5/common.gazebo.xacro" />
+    <!-- ur5 -->
+    <xacro:include filename="$(find ur_description)/urdf/ur5/ur5.urdf.xacro" />
+    <!-- arm -->
+    <xacro:ur5_robot prefix="" joint_limited="false"/>
+    <link name="world" />
+    <joint name="world_joint" type="fixed">
+        <parent link="world" />
+        <child link = "base_link" />
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+    </joint>
+</robot>
+include类似于C语言中的include, 先将该文件扩展到包含的位置. 但包含进来的文件很有可能只是一个参数宏的定义. 并没有被调用.
+        
+        
+** 制作gazebo模型 **
+   在已经制作好的xcaro模型的基础上,添加gazebo模型的组建,看起已经变得十分的具有可操作性。
+1. 对于二轮差动模型通过添加libgazebo_ros_diff_drive.so插件对小车左右轮的控制。
+<gazebo>
+    <plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
+        <robotNamespace>/</robotNamespace>
+        <alwaysOn>true</alwaysOn>
+        <legacyMode>false</legacyMode>
+        <updateRate>50</updateRate>
+        <leftJoint>mybot_left_wheel_hinge</leftJoint>
+        <rightJoint>mybot_right_wheel_hinge</rightJoint>
+        <wheelSeparation>${chassisWidth+wheelWidth}</wheelSeparation>
+        <wheelDiameter>${2*wheelRadius}</wheelDiameter>
+        <torque>20</torque>
+        <commandTopic>mybot_cmd_vel</commandTopic>
+        <odometryTopic>mybot_odom</odometryTopic>
+        <odometryFrame>odom</odometryFrame>
+        <robotBaseFrame>mybot_link</robotBaseFrame>
+    </plugin>
+</gazebo>
+        
+2.通过添加libgazebo_ros_p3d.so来计算里程
+<gazebo>
+    <plugin name="ground_truth" filename="libgazebo_ros_p3d.so">
+        <frameName>map</frameName>
+        <bodyName>mybot_chassis</bodyName>
+        <topicName>odom</topicName>
+        <updateRate>30.0</updateRate>
+    </plugin>
+</gazebo>
+        
+3. 最后,对gazebo模型中小车左右轮相关PID等参数进行设置
+<gazebo reference="mybot_chassis">
+	<material>Gazebo/Orange</material>
+</gazebo>
+<gazebo reference="caster_wheel">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+	<material>Gazebo/Red</material>
+</gazebo>
+<gazebo reference="right_wheel">
+    <mu1 value="1.0"/>
+    <mu2 value="1.0"/>
+    <kp value="10000000.0" />
+    <kd value="1.0" />
+    <fdir1 value="1 0 0"/>
+    <material>Gazebo/Black</material>
+</gazebo>
+<gazebo reference="left_wheel">
+    <mu1 value="1.0"/>
+    <mu2 value="1.0"/>
+    <kp value="10000000.0" />
+    <kd value="1.0" />
+    <fdir1 value="1 0 0"/>
+    <material>Gazebo/Black</material>
+</gazebo>
+     
+```
+
+## 扩展(旋转矩阵，欧拉角，四元素)
+
+```cpp
+```
+
+# SLAM
 
