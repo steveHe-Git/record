@@ -2223,3 +2223,426 @@ include类似于C语言中的include, 先将该文件扩展到包含的位置. �
 
 # SLAM
 
+```cpp
+	我们常见的几个研究的问题包括:建图(Mapping)、定位(Localization)和路径规划(Path	Planning),如果机器人带有机械臂,那么运动规划(Motion	Planning)也是重要的一个环节。而同步定位与建图(SLAM)问题位于定位和建图的交集部分。
+    SLAM需要机器人在未知的环境中逐步建立起地图,然后根据地区确定自身位置,从而进一步定位。
+        
+    这一章我们来看ROS中SLAM的一些功能包,也就是一些常用的SLAM算法,例如Gmapping、Karto、Hector、Cartographer等算法。这一章我们不会去关注算法背后的数学原理,而是更注重工程实现上的方法,告诉你SLAM算法包是如何工作的,怎样快速的搭建起SLAM算法;
+
+** 地图 **
+	ROS中的地图很好理解,就是一张普通的灰度图像,通常为pgm格式。这张图像上的黑色像素表示障碍物,白色像素表示可行区域,灰色是未探索的区域。
+    在SLAM建图的过程中,你可以在RViz里看到一张地图被逐渐建立起来的过程,类似于一块块拼图被拼接成一张完整的地图。这张地图对于我们定位、路径规划都是不可缺少的信息。事实上,地图在ROS中是以Topic的形式维护和呈现的,这个Topic名称就叫做 /map,它的消息类型是 nav_msgs/OccupancyGrid。
+    
+** nav_msgs/OccupancyGrid **
+	然后我们来看一下地图的OccupancyGrid类型是如何定义的,你可以通过rosmsg show nav_msgs/OccupancyGrid来查看消息,或者直接rosed	nav_msgs OccupancyGrid.msg来查看srv文件;
+	std_msgs/Header	header	#消息的报头
+        uint32	seq
+        time	stamp
+        string	frame_id	#地图消息绑定在TF的哪个frame上,一般为map
+    nav_msgs/MapMetaData	info	#地图相关信息
+    	time	map_load_time	#加载时间
+    	float32	resolution	#分辨率	单位:m/pixel
+        uint32	width	#宽	单位:pixel
+        uint32	height	#高	单位:pixel
+        geometry_msgs/Pose	origin	#原点
+        	geometry_msgs/Point	position
+                float64	x
+                float64	y
+                float64	z
+            geometry_msgs/Quaternion	orientation
+                float64	x
+                float64	y
+                float64	z
+                float64	w
+    int8[]	data	#地图具体信息	
+            
+	这个srv文件定义了/map话题的数据结构,包含了三个主要的部分:header,info和data。header是消息的报头,保存了序号、时间戳、frame等通用信息,info是地图的配置信息,它反映了地图的属性,data是真正存储这张地图数据的部分,它是一个可变长数组, int8后面加了[],你可以理解为一个类似于vector的容器,它存储的内容有width*height个int8型的数据,也就是这张地图上每个像素;
+```
+
+## Gmapping
+
+```cpp
+	Gmapping算法是目前基于激光雷达和里程计方案里面比较可靠和成熟的一个算法,它基于粒子滤波,采用RBPF的方法效果稳定,许多基于ROS的机器人都跑的gmapping_slam。这个软件包位于ros-perception组织中的slam_gmapping仓库中。其中的 slam_gmapping是一个metapackage,它依赖了 gmapping ,而算法具体实现都在 gmapping软件包中,该软件包中的 slam_gmapping程序就是我们在ROS中运行的SLAM节点。如果你感兴趣,可以阅读一下gmapping的源代码。
+        
+	gmapping在ROS上运行的方法很简单
+	rosrun gmapping slam_gmapping
+        
+	但由于gmapping算法中需要设置的参数很多,这种启动单个节点的效率很低。所以往往我们会把gmapping的启动写到launch文件中,同时把gmapping需要的一些参数也提前设置好,写进launch文件或yaml文件。具体可参考教学软包中的 slam_sim_demo中的 gmapping_demo.launch和 robot_gmapping.launch.xml	文件。
+        
+** Gmapping	SLAM计算图 **
+	gmapping的作用是根据激光雷达和里程计(Odometry)的信息,对环境地图进行构建,并且对自身状态进行估计。因此它得输入应当包括激光雷达和里程计的数据,而输出应当有自身位置和地图;
+												/tf
+	(tf2_msg)									/slam_gmapping/entropy
+						  slam_gmapping    		/map_metadata (nav_msgs/MapMetaData)
+	  /scan										/map (nav_msgs/OccupancyGrid)
+ （sensor_msgs/LaserScan）
+                                                    
+	位于中心的是我们运行的slam_gmapping节点,这个节点负责整个gmapping	SLAM的工作。它的输入需要有两个:
+	输入：
+     - /tf以及 /tf_static:坐标变换,类型为第一代的tf/tfMessage或第二代
+                的 tf2_msgs/TFMessage其中一定得提供的有两个tf,一个
+                是 base_frame与 laser_frame之间的tf,即机器人底盘和激光雷达之间的变换;一个
+                是 base_frame与 odom_frame之间的tf,即底盘和里程计原点之间的坐标变
+                换。 odom_frame可以理解为里程计原点所在的坐标系。
+	- /scan:激光雷达数据,类型为 sensor_msgs/LaserScan
+        
+    /scan很好理解,Gmapping SLAM所必须的激光雷达数据,而 /tf是一个比较容易忽视的细节。尽管 /tf这个Topic听起来很简单,但它维护了整个ROS三维世界里的转换关系,而 slam_gmapping要从中读取的数据是 base_frame与 laser_frame间的tf,只有这样才能够把周围障碍物变换到机器人坐标系下,更重要的是 	base_frame与 odom_frame之间的tf,这个tf反映了里程计(电机的光电码盘、视觉里程计、IMU)的监测数据,也就是机器人里程计测得走了多少距离,它会把这段变换发布到 odom_frame和 laser_frame	之间。因此slam_gmapping会从 /tf中获得机器人里程计的数据。
+        
+    输出：
+    - /tf:主要是输出 map_frame和odom_frame之间的变换
+	- /slam_gmapping/entropy: std_msgs/Float64类型,反映了机器人位姿估计的分散程度
+	- /map:	slam_gmapping建立的地图
+	- /map_metadata	:地图的相关信息
+        
+    输出的 /tf	里又一个很重要的信息,就是 map_frame和 odom_frame	之间的变换,这其实就是对机器人的定位。通过连通 map_frame和odom_frame,这样 map_frame与 base_frame甚至与 laser_frame都连通了。这样便实现了机器人在地图上的定位。同时,输出的Topic里还有 /map,在上一节我们介绍了地图的类型,在SLAM场景中,地图是作为SLAM的结果被不断地更新和发布； 
+        
+** 里程计误差及修正 **
+	目前ROS中常用的里程计广义上包括车轮上的光电码盘、惯性导航元件(IMU)、视觉里程计,你可以只用其中的一个作为odom,也可以选择多个进行数据融合,融合结果作为
+odom。通常来说,实际ROS项目中的里程计会发布两个Topic: 
+	1. /odom:类型为 nav_msgs/Odometry,反映里程计估测的机器人位置、方向、线速度、角速度信息。
+	2. /tf:	主要是输出 odom_frame 和 base_frame之间的tf。这段tf反映了机器人的位置和方向变换,数值与 /odom	中的相同。
+	
+    由于以上三种里程计都是对机器人的位姿进行估计,存在着累计误差,因此当运动时间较长时,odom_frame和base_frame	之间变换的真实值与估计值的误差会越来越大。你可能会想,能否用激光雷达数据来修正 odom_frame和 base_frame的tf。事实上gmapping不是这么做的,里程计估计的是多少,odom_frame 和 base_frame	 的tf就显示多少,永远不会去修正这段tf。gmapping的做法是把里程计误差的修正发布到 map_frame和 odom_frame之间的tf上,也就是把误差补偿在了地图坐标系和里程计原点坐标系之间。通过这种方式来修正定位。
+    这样 map_frame和 base_frame,甚至和 laser_frame之间就连通了,实现了机器人在地图上的定位。
+        
+** 服务 **
+slam_gmapping也提供了一个服务:
+	/dynamic_map:其srv类型为nav_msgs/GetMap,用于获取当前的地图。
+
+该srv定义如下:nav_msgs/GetMap.srv
+#	Get	the	map	as	a	nav_msgs/OccupancyGrid
+---
+nav_msgs/OccupancyGrid	map
+    
+可见该服务的请求为空,即不需要传入参数,它会直接反馈当前地图。
+    
+** 参数 **
+	slam_gmapping需要的参数很多,这里以 slam_sim_demo教学包中的 gmapping_demo的参数为例,注释了一些比较重要的参数,具体请查看 	ROS-Academy-for-Beginners/slam_sim_demo/launch/include/robot_gmapping.launch.xml；
+        
+<node	pkg="gmapping"	type="slam_gmapping"	name="slam_gmapping"	output="screen">
+    <param	name="base_frame"	value="$(arg	base_frame)"/>	<!--底盘坐标系-->
+    <param	name="odom_frame"	value="$(arg	odom_frame)"/>	<!--里程计坐标系-->
+    <param	name="map_update_interval"	value="1.0"/>	<!--更新时间(s),每多久更新一次地图,不是频率-->
+    <param	name="maxUrange"	value="20.0"/>	<!--激光雷达最大可用距离,在此之外的数据截断不用-->
+    <param	name="maxRange"	value="25.0"/>	<!--激光雷达最大距离-->
+    <param	name="sigma"	value="0.05"/>
+    <param	name="kernelSize"	value="1"/>
+    <param	name="lstep"	value="0.05"/>
+    <param	name="astep"	value="0.05"/>
+    <param	name="iterations"	value="5"/>
+    <param	name="lsigma"	value="0.075"/>
+    <param	name="ogain"	value="3.0"/>
+    <param	name="lskip"	value="0"/>
+    <param	name="minimumScore"	value="200"/>
+    <param	name="srr"	value="0.01"/>
+    <param	name="srt"	value="0.02"/>
+    <param	name="str"	value="0.01"/>
+    <param	name="stt"	value="0.02"/>
+    <param	name="linearUpdate"	value="0.5"/>
+    <param	name="angularUpdate"	value="0.436"/>
+    <param	name="temporalUpdate"	value="-1.0"/>
+    <param	name="resampleThreshold"	value="0.5"/>
+    <param	name="particles"	value="80"/>
+    <param	name="xmin"	value="-25.0"/>
+    <param	name="ymin"	value="-25.0"/>
+    <param	name="xmax"	value="25.0"/>
+    <param	name="ymax"	value="25.0"/>
+    <param	name="delta"	value="0.05"/>
+    <param	name="llsamplerange"	value="0.01"/>
+    <param	name="llsamplestep"	value="0.01"/>
+    <param	name="lasamplerange"	value="0.005"/>
+    <param	name="lasamplestep"	value="0.005"/>
+    <remap	from="scan"	to="$(arg	scan_topic)"/>
+</node>      
+```
+
+## karto slam
+
+```cpp
+Karto SLAM和Gmapping SLAM在工作方式上非常类似,如下图所示
+	输入的Topic同样是 /tf	和 /scan,其中 /tf里要连通odom_frame与 base_frame ,还有laser_frame。这里和Gmapping完全一样。唯一不同的地方是输出,slam_karto的输出少相比slam_gmapping了一个位姿估计的分散程度.
+    
+** 服务 **
+	与Gmapping相同,提供/dynamic_map服务
+    
+** 参数 ** 
+	这里以 ROS-Academy-for-Beginners中的 karto_slam为例,选取了它的参数文件 slam_sim_demo/param/karto_params.yaml,关键位置做了注释:
+
+    #	General	Parameters
+    use_scan_matching:	true
+    use_scan_barycenter:	true
+    minimum_travel_distance:	0.2	
+    minimum_travel_heading:	0.174							#in	radians
+    scan_buffer_size:	70
+    scan_buffer_maximum_scan_distance:	20.0
+    link_match_minimum_response_fine:	0.8
+    link_scan_maximum_distance:	10.0
+    loop_search_maximum_distance:	4.0
+    do_loop_closing:	true
+    loop_match_minimum_chain_size:	10
+    loop_match_maximum_variance_coarse:	0.4					#	gets	squared	later
+    loop_match_minimum_response_coarse:	0.8
+    loop_match_minimum_response_fine:	0.8
+    #	Correlation	Parameters	-	Correlation	Parameters
+    correlation_search_space_dimension:	0.3
+    correlation_search_space_resolution:	0.01
+    correlation_search_space_smear_deviation:	0.03
+    #	Correlation	Parameters	-	Loop	Closure	Parameters
+    loop_search_space_dimension:	8.0
+    loop_search_space_resolution:	0.05
+    loop_search_space_smear_deviation:	0.03
+    #	Scan	Matcher	Parameters
+    distance_variance_penalty:	0.3						#	gets	squared	later
+    angle_variance_penalty:	0.349						#	in	degrees	(gets	converted	to	radians	t
+    hen	squared)
+    fine_search_angle_offset:	0.00349			#	in	degrees	(gets	converted	to	radians)
+    coarse_search_angle_offset:	0.349	#	in	degrees	(gets	converted	to	radians)
+    coarse_angle_resolution:	0.0349							#	in	degrees	(gets	converted	to	radians)
+    minimum_angle_penalty:	0.9
+    minimum_distance_penalty:	0.5
+    use_response_expansion:	false	
+```
+
+## hector slam
+
+```cpp
+	Hector SLAM算法不同于前面两种算法,Hector只需要激光雷达数据,而不需要里程计数据。这种算法比较适合手持式的激光雷达,并且对激光雷达的扫描频率有一定要求。Hector算法的效果不如Gmapping、Karto,因为它仅用到激光雷达信息。这样建图与定位的依据就不如多传感器结合的效果好。但Hector适合手持移动或者本身就没有里程计的机器人使用。
+        
+   	(tf2_msg)												/poseupdate (geometry_msgs/PoseWithCovarianceStamped)
+/syscommand(std_msgs/string)								/slam_out_pose (PoseStampd)				  																hector_mapping   		/map_metadata (nav_msgs/MapMetaData)
+	  /scan													/map (nav_msgs/OccupancyGrid)
+ （sensor_msgs/LaserScan）
+        
+	位于中心的节点叫作hector_mapping	,它的输入和其他SLAM框架类似,都包括了 /tf 和 /scan,另外Hector还订阅一个 /syscommand	Topic,这是一个字符串型的Topic,当接收到 reset	消息时,地图和机器人的位置都会初始化到最初最初的位置。在输出的Topic方面,hector多了一个 /poseupdate和/slam_out_pose,前者是具有协方差的机器人位姿估计,后者是没有协方差的位姿估计。
+        
+** 服务 **
+	与Gmapping相同,提供 	/dynamic_map查询地图服务
+        
+** 参数 **
+    以 ROS-Academy-for-Beginners	中的 hector_slam为例,选取了它的launch文件 slam_sim_demo/launch/hector_demo.launch为例,关键位置做了注释:
+
+	<node pkg="hector_mapping" type="hector_mapping" name="hector_height_mapping" output="screen">
+        <param	name="scan_topic"	value="scan"	/>
+        <param	name="base_frame"	value="base_link"	/>
+        <param	name="odom_frame"	value="odom"	/>
+        <param	name="output_timing"	value="false"/>
+        <param	name="advertise_map_service"	value="true"/>
+        <param	name="use_tf_scan_transformation"	value="true"/>
+        <param	name="use_tf_pose_start_estimate"	value="false"/>
+        <param	name="pub_map_odom_transform"	value="true"/>
+        <param	name="map_with_known_poses"	value="false"/>
+        <param	name="map_pub_period"	value="1"/>
+        <param	name="update_factor_free"	value="0.45"/>
+        <param	name="map_update_distance_thresh"	value="0.1"/>
+        <param	name="map_update_angle_thresh"	value="0.05"/>
+        <param	name="map_resolution"	value="0.05"/>
+        <param	name="map_size"	value="1024"/>
+        <param	name="map_start_x"	value="0"/>
+        <param	name="map_start_y"	value="0"/>
+    </node>
+```
+
+# Navigation
+
+```cpp
+	Navigation是机器人最基本的功能之一,ROS为我们提供了一整套Navigation的解决方案,包括全局与局部的路径规划、代价地图、异常行为恢复、地图服务器等等,这些开源工具包极大地减少了我们开发的工作量,任何一套移动机器人硬件平台经过这套方案就可以快速部署实现;
+```
+
+## Navigation stack
+
+```cpp
+	Navigation	Stack是一个ROS的metapackage,里面包含了ROS在路径规划、定位、地图、异常行为恢复等方面的package,其中运行的算法都堪称经典。Navigation	Stack的主要作用就是路径规划,通常是输入各传感器的数据,输出速度。一般我们的ROS都预装了Navigation
+        
+包名 功能
+amcl 						定位
+fake_localization 			定位
+map_server 					提供地图
+move_base 					路径规划节点
+nav_core 					路径规划的接口类,包括base_local_planner、base_global_planner和recovery_behavior三个接口
+base_local_planner 			实现了Trajectory Rollout和DWA两种局部规划算法
+dwa_local_planner 			重新实现了DWA局部规划算法
+parrot_planner 				实现了较简单的全局规划算法
+navfn 						实现了Dijkstra和A*全局规划算法
+global_planner 				重新实现了Dijkstra和A*全局规划算法
+clear_costmap_recovery 		实现了清除代价地图的恢复行为
+rotate_recovery 			实现了旋转的恢复行为
+move_slow_and_clear 		实现了缓慢移动的恢复行为
+costmap_2d 					二维代价地图
+voxel_grid 					三维小方块(体素?)
+robot_pose_ekf 				机器人位姿的卡尔曼滤波
+	这么多package,你可能会觉得很乱,不过担心,在使用中其实还是比较简单的,我们接下来会对常用的主要功能进行介绍。
+        
+** Navigation工作框架 **
+	上图中位于导航功能正中心的是move_base节点,可以理解为一个强大的路径规划器,在实际的导航任务中,你只需要启动这一个node,并且给他提供数据,就可以规划出路径和速度。	move_base之所以能做到路径规划,是因为它包含了很多的插件,像图中的白色圆圈 global_planner、local_planner、global_costmap、local_costmap 、recovery_behaviors。这些插件用于负责一些更细微的任务:全局规划、局部规划、全局地图、局部地图、恢复行为。而每一个插件其实也都是一个package,放在Navigation Stack里。关于move_base我们后面会进一步介绍,先来看看move_base外围有哪些输入输出。
+        
+    输入：
+        /tf	 :提要提供的tf包括 map_frame、odom_frame、base_frame	以及机器人各关节之间的完成的一棵tf树。
+		/odom:里程计信息
+		/scan或 /pointcloud:传感器的输入信息,最常用的是激光雷达(sensor_msgs/LaserScan类型),也有用点云数据(sensor_msgs/PointCloud)的。
+		/map:地图,可以由SLAM程序来提供,也可以由 map_server来指定已知地图。
+		
+        以上四个Topic是必须持续提供给导航系统的,下面一个是可随时发布的topic:
+			move_base_simple/goal :目标点位置。
+                
+    输出：
+      	/cmd_vel: geometry_msgs/Twist类型,为每一时刻规划的速度信息。         
+```
+
+## move_base
+
+```cpp
+	move_base算得上是Navigation中的核心节点,之所以称之为核心,是因为它在导航的任务中处于支配地位,其他的一些package都是它的插件;
+	
+	move_base要运行起来,需要选择好插件,包括三种插件: base_local_planner、base_global_planner和 recovery_behavior,这三种插件都得指定,否则系统会指定默认值。Navigation为我们提供了不少候选的插件,可以在配置move_base时选择。
+        
+1. base_local_planner插件:
+    - base_local_planner:	实现了TrajectoryRollout和DWA两种局部规划算法
+    - dwa_local_planner:	实现了DWA局部规划算法,可以看作是base_local_planner的改进版本
+        
+2. base_global_planner插件:
+	- parrot_planner:	实现了较简单的全局规划算法
+    - navfn:	实现了Dijkstra和A*全局规划算法
+    - global_planner:	重新实现了Dijkstra和A*全局规划算法,可以看作navfn的改进版
+
+3. recovery_behavior插件:
+    - clear_costmap_recovery:	实现了清除代价地图的恢复行为
+    - rotate_recovery:	实现了旋转的恢复行为
+    - move_slow_and_clear:	实现了缓慢移动的恢复行为
+        
+	除了以上三个需要指定的插件外,还有一个costmap插件,该插件默认已经选择好,无法更改。
+        
+	以上所有的插件都是继承于nav_core里的接口, nav_core属于一个接口package,它只定义了三种插件的规范,也可以说定义了三种接口类,然后分别由以上的插件来继承和实现这些接口。因此如果你要研究路径规划算法,不妨研究一下nav_core定义的路径规划工作流程,然后仿照 dwa_local_planner或其他插件来实现。
+    除了以上三个需要指定的插件外,还有一个costmap插件,该插件默认已经选择好,默认即为costmap_2d,不可更改,但costmap_2d提供了不同的Layer可以供我们设置;
+
+	在这里插件的概念并不是我们抽象的描述,而是在ROS里catkin编译系统能够认出的,并且与其他节点能够耦合的C++库,插件是可以动态加载的类,也就是说插件不需要提前链接到ROS的程序上,只需在运行时加载插件就可以调用其中的功能;
+
+** 插件选择(参数) **
+   既然我们知道了move_base具体的一些插件,那如何来选择呢?其实非常简单。在move_base的参数设置里可以选择插件。move_base的参数包括以下内容: 
+参数 						默认值 								  		功能
+~base_global_planner 	navfn/NavfnROS 							 		设置全局规划器
+~base_local_planner 	base_local_planner/TrajectoryPlannerROS  		设置局部规划器
+~recovery_behaviors     [{name:	conservative_reset,	type:
+                        clear_costmap_recovery/ClearCostmapRecovery},
+                        {name:	rotate_recovery,	type:
+                        rotate_recovery/RotateRecovery},	{name:
+                        aggressive_reset,	type:
+                        clear_costmap_recovery/ClearCostmapRecovery}] 	设置恢复行为 
+    
+	除了这三个选择插件的参数,还有控制频率、误差等等参数。	具体请看http://wiki.ros.org/move_base介绍。在ROS-Academy-for-Beginners的代码中的 navigation_sim_demo	例子中,由于要配置的参数太多,通常会将配置写在一个yaml文件中,我们用 param/move_base_params.yaml来保存以上参数。而关于一些具体插件,比如 dwa_local_planner则也会创建一个文件 param/dwa_local_planner.yaml来保存它的设置；
+
+** Topic与Service **
+move_base包含的Service包括:
+    - make_plan:	nav_msgs/GetPlan类型,请求为一个目标点,响应为规划的轨迹,但不执行该轨迹。
+    - clear_unknown_space:	std_srvs/Empty类型,允许用户清除未知区域地图。
+    - clear_costmaps:	std_srvs/Empty类型,允许用户清除代价地图上的障碍物。 
+        
+** costmap **
+   costmap是Navigation Stack里的代价地图,它其实也是move_base插件,本质上是C++的动态链接库,用过catkin_make之后生成.so文件,然后move_base在启动时会通过动态加载的方式调用其中的函数。    
+        
+   之前我们在介绍SLAM时讲过ROS里的地图的概念,地图就是 /map这个topic,它也是一张图片,一个像素代表了实际的一块面积,用灰度值来表示障碍物存在的可能性。然而在实际的导航任务中,光有一张地图是不够的,机器人需要能动态的把障碍物加入,或者清楚已经不存在的障碍物,有些时候还要在地图上标出危险区域,为路径规划提供更有用的信息。因为导航的需要,所以出现了代价地图。你可以将代价地图理解为,在 /map 之上新加的另外几层地图,不仅包含了原始地图信息,还加入了其他辅助信息。
+
+    代价地图有一下特点:	
+	1.首先,代价地图有两张,一张是 local_costmap,一张是global_costmap,分别用于局部路径规划器和全局路径规划器,而这两个costmap都默认
+并且只能选择costmap_2d作为插件。	
+    2.无论是 local_costmap还是 global_costmap,都可以配置他们的Layer,可以选择多个层次。costmap的Layer包括以下几种:
+		- Static	Map	Layer:静态地图层,通常都是SLAM建立完成的静态地图。
+		- Obstacle	Map	Layer:障碍地图层,用于动态的记录传感器感知到的障碍物信息。
+		- Inflation	Layer:膨胀层,在以上两层地图上进行膨胀(向外扩张),以避免机器人的外壳会撞上障碍物。
+		- Other	Layers:你还可以通过插件的形式自己实现costmap,目前已有 Social CostmapLayer、Range Sensor Layer等开源插件。可以同时选择多个Layer并存。
+            
+** 地图插件的选择 **
+    与move_base插件的配置类似,costmap配置也同样用yaml	来保存,其本质是维护在参数服务器上。由于costmap通常分为local和global的coastmap,我们习惯把两个代价地图分开。以ROS-Academy-for-Beginners为例,配置写在了param文件夹下的global_costmap_params.yaml和local_costmap_params.yaml里。
+    1. global_costmap_params.yaml:
+	global_costmap:
+			global_frame:	/map
+			robot_base_frame:	/base_footprint
+			update_frequency:	2.0
+			publish_frequency:	0.5
+			static_map:	true
+			rolling_window:	false
+			transform_tolerance:	0.5
+			plugins:
+					-	{name:	static_layer,				type:	"costmap_2d::StaticLayer"}
+					-	{name:	voxel_layer,				type:	"costmap_2d::VoxelLayer"}
+					-	{name:	inflation_layer,			type:	"costmap_2d::InflationLayer"}
+
+	2. local_costmap_params.yaml
+     local_costmap:
+			global_frame:	/map
+			robot_base_frame:	/base_footprint
+			update_frequency:	5.0
+			publish_frequency:	2.0
+			static_map:	false
+			rolling_window:	true
+			width:	4.0
+			height:	4.0
+			resolution:	0.05
+			origin_x:	5.0
+			origin_y:	0
+			transform_tolerance:	0.5
+			plugins:
+				-	{name:	voxel_layer,				type:	"costmap_2d::VoxelLayer"}
+				-	{name:	inflation_layer,			type:	"costmap_2d::InflationLayer"}
+	在plugins一项中可以设置Layer的种类,可以多层叠加。在本例中,考虑到局部地图并不需要静态地图,而只考虑传感器感知到的障碍物,因此可以删去StaticLayer。
+```
+
+## map_server
+
+```cpp
+	在某些固定场景下,我们已经知道了地图(无论通过SLAM还是测量),这样机器人每次启动最好就能直接加载已知地图,而不是每次开机都重建。在这种情况下,就需要有一个节点来发布 /map,提供场景信息了。
+        
+** map_server **
+	map_server是一个和地图相关的功能包,它可以将已知地图发布出来,供导航和其他功能使用,也可以保存SLAM建立的地图。
+        
+    要让map_server发布 /map,需要输入给它两个文件:
+        1. 地图文件,通常为pgm格式;
+        2. 地图的描述文件,通常为yaml格式
+            
+    例如在ROS-Academy-for-Beginners里,我们提供了软件博物馆的地图文件,见slam_sim_demo/maps下:
+		1. Software_Museum.pgm	
+		2. Software_Museum.yaml
+            image:	Software_Museum.pgm		#指定地图文件
+            resolution:	0.050000				#地图的分辨率	单位为m/pixel
+            origin:	[-25.000000,	-25.000000,	0.000000]			#地图的原点
+            negate:	0				#0代表	白色为空闲	黑色为占据
+            occupied_thresh:	0.65		#当占据的概率大于0.65认为被占据
+            free_thresh:	0.196					#当占据的概率小于0.196认为无障碍
+        其中占据的概率	occ	=	(255-color_avg)/255.0,	color_avg为RGB三个通道的平均值。
+   有了以上两个文件,你可以通过指令来加载这张地图,map_server相关命令如下:  
+        map_server命令 												作用
+        rosrun map_server map_server Software_Museum.yaml		 	加载自定义的地图
+        rosrun map_server map_saver -f mymap	 					保存当前地图为mymap.pgn和mymap.yaml
+            
+** **
+当我运行  rosrun map_server map_server	***.yaml时,会有以下的通信接口: 
+1. topic
+    通常我们是在launch文件中加载map_server,发布地图。而map_server发布的消息包括:
+        - /map_metadata:	发布地图的描述信息
+        - /map:	发布锁存的地图消息
+2. Service
+    amcl的服务只有一个:
+		- static_map:	用于请求和响应当前的静态地图。
+3. param
+amcl有一个参数需要设置,就是发布地图的frame。
+	~frame_id:	string类型,默认为map。	绑定发布的地图与tf中的哪个frame,通常就是map。
+	有两个概念不要搞混淆,map既是一个topic,也是一个frame,前者是topic通信方式中的一个话题,信息交互的频道,后者是tf中的一个坐标系,map_frame需要和其他的frame相连通。            
+```
+
+## acml
+
+```cpp
+	Adaptive Mentcarto Localization(AMCL),蒙特卡洛自适应定位是一种很常用的定位算法,它通过比较检测到的障碍物和已知地图来进行定位。AMCL上的通信架构如上图所示,与之前SLAM的框架很像,最主要的区别是 /map作为了输入,而不是输出,因为AMCL算法只负责定位,而不管建图。	
+        										
+   	(tf2_msg)												/amcl_pose (geometry_msgs/PoseWithCovarianceStamped)
+	/map(nav_msgs/OccupancyGrid)  	    amcl	   			/tf 
+	  /scan													/particlecloudpoint (geometry_msgs/PoseAray)
+ （sensor_msgs/LaserScan） 
+        
+  同时还有一点需要注意,AMCl定位会对里程计误差进行修正,修正的方法是把里程计误差加到 map_frame	和odom_frame之间,而 odom_frame和 base_frame之间是里程计的测量值,这个测量值并不会被修正。这一工程实现与之前gmapping、karto的做法是相同的。
+```
+
+# Navigation工具包说明
+
+```cpp
+```
+
