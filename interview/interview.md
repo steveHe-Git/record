@@ -23,9 +23,45 @@
 	#解析： num &= (num -1); 很巧妙，假设num = 0111 ,num-1= 0110,两者相&，如果num是奇数，最后一位必然是1，如果相&之后的结果不大于0，说明1的个数没有了； &之后的结果为num=0110，为偶数num-1= 0101， 那最后相邻的两位进行查看10，01，当时偶数时，两者相与必然为00，可以巧妙的计算第二位存不存在1; 然后相&的结果为 num = 0100,刚好可以判断第三位是否为0，依次类推，当num不大于0，即可统计1的个数
 
 2. 提取一个 IP 表示的int整数；
+    uint32_t ipToInt(string ip) {
+    	//判断一个ip是否合法
+    	if (!isIP(ip)) {
+            return 0;
+        }
+    	
+    	vector<int>ipList;
+    	int len = ip.size();
+    	for (int i=0; i < len; i++) {
+            int j = i;
+            while(j < len && ip[j] != '.') {
+                j++;
+            }
+            ipList.push_back(atoi(ip.substr(i, j-i)));
+            i = j;
+        }
     
-    
+    	uint32_t res = 0;
+    	int list_len = ipList.size();
+    	for (int i =0 ; i < list_len; i++) {
+            res = res << 8 | ipList[i];
+        }
+    	return res;
+	}
 
+	bool isIp(string str) {
+        vector<string> str = split(str, '.');
+        for (int i = 0; i < str.size(); ++i) {
+			if (str.size != 4 || str[i].empty()) {
+                return false;
+            } else {
+                if (atoi(str[i])<0 || atoi(str[i]) > 255) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    
 3. 在c++中string 没有直接分割的函数，可以利用c的strtok函数封装一个分割方法
     char *strtok(char *str, const char *delim) 
     该函数返回被分解的第一个子字符串，如果没有可检索的字符串，则返回一个空指针。
