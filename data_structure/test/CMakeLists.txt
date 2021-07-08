@@ -7,5 +7,6 @@ foreach(filename IN LISTS filelist)
     target_link_libraries(${project_name} 
         ${GLIB}
         listlink_lib
+        common_lib
         pthread)
 endforeach(filename)
