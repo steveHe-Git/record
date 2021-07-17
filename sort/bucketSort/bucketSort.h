@@ -1,3 +1,6 @@
+#ifndef BUCKETSORT_H_
+#define BUCKETSORT_H_
+
 #include <stdio.h>
 #include <string.h>
 
@@ -54,7 +57,7 @@ void bucketSort(int arr[], int len) {
     int k = 0;
     for (int i = 0; i < bucketCount; i++) {
         insertSort(bucketArray[i], len);
-        printArr(bucketArray[i], len);
+        //printArr(bucketArray[i], len);
         for (int j = 0; j < len; j++) {
             if (bucketArray[i][j] != -1) {
                 arr[k++] = bucketArray[i][j];
@@ -63,12 +66,14 @@ void bucketSort(int arr[], int len) {
     }
 }
 
-int main() {
-    int arr[] = {53, 3, 542, 748, 14, 214, 154, 63, 616, 649};
-    int length = LENGTH(arr);
-    // printArr(arr, length);
-    // insertSort(arr, length);
-    printArr(arr, length);
-    bucketSort(arr, length);
-    printArr(arr, length);
-}
+#endif
+
+// int main() {
+//     int arr[] = {53, 3, 542, 748, 14, 214, 154, 63, 616, 649};
+//     int length = LENGTH(arr);
+//     // printArr(arr, length);
+//     // insertSort(arr, length);
+//     printArr(arr, length);
+//     bucketSort(arr, length);
+//     printArr(arr, length);
+// }
